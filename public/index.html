@@ -223,6 +223,7 @@
   let otherPlayers = [];
 
   window.addEventListener('keydown', (e) => {
+    if (document.activeElement === chatInput) return;
     const k = e.key.toLowerCase();
     if (['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].includes(k)) {
       keys[k] = true;
@@ -232,6 +233,7 @@
   window.addEventListener('keyup', (e) => {
     keys[e.key.toLowerCase()] = false;
   });
+  chatInput.addEventListener('focus', () => { for (const k in keys) keys[k] = false; });
 
   function canvasPointToNorm(clientX, clientY){
     return { x: clientX / window.innerWidth, y: clientY / window.innerHeight };
