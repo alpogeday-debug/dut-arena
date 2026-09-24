@@ -10,6 +10,7 @@ const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
 const players = new Map(); // ws -> {id, x, y, color, name}
+const idToWs = new Map(); // id -> ws
 let nextId = 1;
 
 function broadcast(data, exclude) {
@@ -25,8 +26,11 @@ function stateMessage() {
   return { type: 'state', players: Array.from(players.values()) };
 }
 
+const RTC_TYPES = new Set(['rtc-offer', 'rtc-answer', 'rtc-ice']);
+
 wss.on('connection', (ws) => {
   const id = nextId++;
+  idToWs.set(id, ws);
   ws.send(JSON.stringify({ type: 'init', id }));
 
   ws.on('message', (raw) => {
@@ -48,11 +52,17 @@ wss.on('connection', (ws) => {
       broadcast(stateMessage());
     } else if (msg.type === 'honk') {
       broadcast({ type: 'honk', id, x: msg.x, y: msg.y, color: msg.color }, ws);
+    } else if (RTC_TYPES.has(msg.type)) {
+      const target = idToWs.get(msg.to);
+      if (target && target.readyState === WebSocket.OPEN) {
+        target.send(JSON.stringify({ type: msg.type, from: id, payload: msg.payload }));
+      }
     }
   });
 
   ws.on('close', () => {
     players.delete(ws);
+    idToWs.delete(id);
     broadcast(stateMessage());
   });
 });

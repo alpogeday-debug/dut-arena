@@ -104,6 +104,34 @@
     -webkit-tap-highlight-color:transparent;
   }
   #honk-btn:active{ transform:scale(0.92); }
+  #mic-btn{
+    position:fixed;
+    left:calc(20px + env(safe-area-inset-left,0px));
+    bottom:calc(24px + env(safe-area-inset-bottom,0px));
+    height:52px;
+    padding:0 18px;
+    border-radius:999px;
+    border:2px solid var(--panel-border);
+    background:var(--panel);
+    color:var(--text);
+    font-family:'Inter',system-ui,sans-serif;
+    font-weight:600;
+    font-size:13px;
+    z-index:6;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    -webkit-tap-highlight-color:transparent;
+  }
+  #mic-btn.on{
+    border-color:#7dff6b;
+    box-shadow:0 0 16px #7dff6b55;
+  }
+  #mic-btn.muted{
+    border-color:var(--accent-2);
+    color:var(--accent-2);
+  }
   #conn-note{
     position:fixed;
     top:calc(16px + env(safe-area-inset-top,0px));
@@ -141,6 +169,7 @@
 <div id="conn-note" hidden>Sunucuya bağlanılamadı — tekrar bağlanmaya çalışılıyor…</div>
 
 <button id="honk-btn" type="button">DÜT</button>
+<button id="mic-btn" type="button">🎤 Sesli sohbeti aç</button>
 
 <script>
 (function(){
@@ -151,6 +180,7 @@
   const playerCountEl = document.getElementById('player-count');
   const connNote = document.getElementById('conn-note');
   const honkBtn = document.getElementById('honk-btn');
+  const micBtn = document.getElementById('mic-btn');
   const hintDesktop = document.getElementById('hint-desktop');
   const hintMobile = document.getElementById('hint-mobile');
 
@@ -239,6 +269,86 @@
   let ws = null;
   let wsConnected = false;
 
+  // ---- Sesli sohbet (WebRTC) ----
+  let localStream = null;
+  let micEnabled = false;
+  let micMuted = false;
+  const peerConnections = new Map(); // id -> RTCPeerConnection
+  const remoteAudioEls = new Map(); // id -> <audio>
+  const RTC_SUPPORTED = !!(window.RTCPeerConnection && navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  if (!RTC_SUPPORTED) micBtn.hidden = true;
+
+  function ensurePeerConnection(peerId){
+    if (peerConnections.has(peerId)) return peerConnections.get(peerId);
+    const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+    peerConnections.set(peerId, pc);
+
+    if (localStream) {
+      for (const track of localStream.getTracks()) pc.addTrack(track, localStream);
+    }
+
+    pc.onicecandidate = (e) => {
+      if (e.candidate) sendJSON({ type: 'rtc-ice', to: peerId, payload: e.candidate });
+    };
+
+    pc.ontrack = (e) => {
+      let audioEl = remoteAudioEls.get(peerId);
+      if (!audioEl) {
+        audioEl = document.createElement('audio');
+        audioEl.autoplay = true;
+        document.body.appendChild(audioEl);
+        remoteAudioEls.set(peerId, audioEl);
+      }
+      audioEl.srcObject = e.streams[0];
+    };
+
+    return pc;
+  }
+
+  function closePeer(peerId){
+    const pc = peerConnections.get(peerId);
+    if (pc) { pc.close(); peerConnections.delete(peerId); }
+    const audioEl = remoteAudioEls.get(peerId);
+    if (audioEl) { audioEl.remove(); remoteAudioEls.delete(peerId); }
+  }
+
+  async function connectToPeer(peerId){
+    if (!micEnabled || myId === null) return;
+    const pc = ensurePeerConnection(peerId);
+    if (myId < peerId) {
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      sendJSON({ type: 'rtc-offer', to: peerId, payload: offer });
+    }
+  }
+
+  async function enableMic(){
+    if (!RTC_SUPPORTED || micEnabled) return;
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err) {
+      micBtn.textContent = '🎤 İzin verilmedi';
+      return;
+    }
+    micEnabled = true;
+    micBtn.textContent = '🎤 Açık (kapatmak için tıkla)';
+    micBtn.classList.add('on');
+    for (const p of otherPlayers) connectToPeer(p.id);
+  }
+
+  function toggleMute(){
+    if (!localStream) return;
+    micMuted = !micMuted;
+    localStream.getAudioTracks().forEach(t => { t.enabled = !micMuted; });
+    micBtn.classList.toggle('muted', micMuted);
+    micBtn.textContent = micMuted ? '🎤 Susturuldu (aç için tıkla)' : '🎤 Açık (kapatmak için tıkla)';
+  }
+
+  micBtn.addEventListener('click', () => {
+    if (!micEnabled) enableMic();
+    else toggleMute();
+  });
+
   function connect(){
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
     ws = new WebSocket(proto + '//' + location.host);
@@ -247,7 +357,7 @@
     ws.onclose = () => { wsConnected = false; connNote.hidden = false; setTimeout(connect, 1500); };
     ws.onerror = () => { ws.close(); };
 
-    ws.onmessage = (event) => {
+    ws.onmessage = async (event) => {
       let msg;
       try { msg = JSON.parse(event.data); } catch (e) { return; }
 
@@ -256,9 +366,31 @@
       } else if (msg.type === 'state') {
         otherPlayers = msg.players.filter(p => p.id !== myId);
         playerCountEl.textContent = (otherPlayers.length + 1) + ' OYUNCU';
+
+        const currentIds = new Set(otherPlayers.map(p => p.id));
+        if (micEnabled) {
+          for (const id of currentIds) {
+            if (!peerConnections.has(id)) connectToPeer(id);
+          }
+        }
+        for (const id of Array.from(peerConnections.keys())) {
+          if (!currentIds.has(id)) closePeer(id);
+        }
       } else if (msg.type === 'honk') {
         playHonk();
         addPulse(msg.x, msg.y, msg.color || '#ffffff');
+      } else if (msg.type === 'rtc-offer') {
+        const pc = ensurePeerConnection(msg.from);
+        await pc.setRemoteDescription(new RTCSessionDescription(msg.payload));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        sendJSON({ type: 'rtc-answer', to: msg.from, payload: answer });
+      } else if (msg.type === 'rtc-answer') {
+        const pc = peerConnections.get(msg.from);
+        if (pc) await pc.setRemoteDescription(new RTCSessionDescription(msg.payload));
+      } else if (msg.type === 'rtc-ice') {
+        const pc = peerConnections.get(msg.from);
+        if (pc) { try { await pc.addIceCandidate(new RTCIceCandidate(msg.payload)); } catch (e) { /* ignore */ } }
       }
     };
   }
