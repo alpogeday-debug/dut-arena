@@ -104,10 +104,29 @@
     -webkit-tap-highlight-color:transparent;
   }
   #honk-btn:active{ transform:scale(0.92); }
-  #mic-btn{
+  #chat-box{
     position:fixed;
     left:calc(20px + env(safe-area-inset-left,0px));
     bottom:calc(24px + env(safe-area-inset-bottom,0px));
+    display:flex;
+    gap:8px;
+    z-index:6;
+  }
+  #chat-input{
+    height:52px;
+    width:min(46vw, 260px);
+    padding:0 16px;
+    border-radius:999px;
+    border:2px solid var(--panel-border);
+    background:var(--panel);
+    color:var(--text);
+    font-family:'Inter',system-ui,sans-serif;
+    font-size:13px;
+    outline:none;
+  }
+  #chat-input::placeholder{ color:var(--text-dim); }
+  #chat-input:focus{ border-color:var(--accent); }
+  #chat-send{
     height:52px;
     padding:0 18px;
     border-radius:999px;
@@ -117,20 +136,8 @@
     font-family:'Inter',system-ui,sans-serif;
     font-weight:600;
     font-size:13px;
-    z-index:6;
     cursor:pointer;
-    display:flex;
-    align-items:center;
-    gap:8px;
     -webkit-tap-highlight-color:transparent;
-  }
-  #mic-btn.on{
-    border-color:#7dff6b;
-    box-shadow:0 0 16px #7dff6b55;
-  }
-  #mic-btn.muted{
-    border-color:var(--accent-2);
-    color:var(--accent-2);
   }
   #conn-note{
     position:fixed;
@@ -169,7 +176,10 @@
 <div id="conn-note" hidden>Sunucuya bağlanılamadı — tekrar bağlanmaya çalışılıyor…</div>
 
 <button id="honk-btn" type="button">DÜT</button>
-<button id="mic-btn" type="button">🎤 Sesli sohbeti aç</button>
+<div id="chat-box">
+  <input id="chat-input" type="text" placeholder="Mesaj yaz…" maxlength="140">
+  <button id="chat-send" type="button">Gönder</button>
+</div>
 
 <script>
 (function(){
@@ -180,7 +190,8 @@
   const playerCountEl = document.getElementById('player-count');
   const connNote = document.getElementById('conn-note');
   const honkBtn = document.getElementById('honk-btn');
-  const micBtn = document.getElementById('mic-btn');
+  const chatInput = document.getElementById('chat-input');
+  const chatSend = document.getElementById('chat-send');
   const hintDesktop = document.getElementById('hint-desktop');
   const hintMobile = document.getElementById('hint-mobile');
 
@@ -269,84 +280,19 @@
   let ws = null;
   let wsConnected = false;
 
-  // ---- Sesli sohbet (WebRTC) ----
-  let localStream = null;
-  let micEnabled = false;
-  let micMuted = false;
-  const peerConnections = new Map(); // id -> RTCPeerConnection
-  const remoteAudioEls = new Map(); // id -> <audio>
-  const RTC_SUPPORTED = !!(window.RTCPeerConnection && navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
-  if (!RTC_SUPPORTED) micBtn.hidden = true;
+  const chatBubbles = new Map(); // id -> {text, start}
 
-  function ensurePeerConnection(peerId){
-    if (peerConnections.has(peerId)) return peerConnections.get(peerId);
-    const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
-    peerConnections.set(peerId, pc);
-
-    if (localStream) {
-      for (const track of localStream.getTracks()) pc.addTrack(track, localStream);
-    }
-
-    pc.onicecandidate = (e) => {
-      if (e.candidate) sendJSON({ type: 'rtc-ice', to: peerId, payload: e.candidate });
-    };
-
-    pc.ontrack = (e) => {
-      let audioEl = remoteAudioEls.get(peerId);
-      if (!audioEl) {
-        audioEl = document.createElement('audio');
-        audioEl.autoplay = true;
-        document.body.appendChild(audioEl);
-        remoteAudioEls.set(peerId, audioEl);
-      }
-      audioEl.srcObject = e.streams[0];
-    };
-
-    return pc;
+  function sendChat(){
+    const text = chatInput.value.trim();
+    if (!text) return;
+    sendJSON({ type: 'chat', text });
+    chatBubbles.set(myId, { text, start: performance.now() });
+    chatInput.value = '';
+    chatInput.blur();
   }
-
-  function closePeer(peerId){
-    const pc = peerConnections.get(peerId);
-    if (pc) { pc.close(); peerConnections.delete(peerId); }
-    const audioEl = remoteAudioEls.get(peerId);
-    if (audioEl) { audioEl.remove(); remoteAudioEls.delete(peerId); }
-  }
-
-  async function connectToPeer(peerId){
-    if (!micEnabled || myId === null) return;
-    const pc = ensurePeerConnection(peerId);
-    if (myId < peerId) {
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      sendJSON({ type: 'rtc-offer', to: peerId, payload: offer });
-    }
-  }
-
-  async function enableMic(){
-    if (!RTC_SUPPORTED || micEnabled) return;
-    try {
-      localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch (err) {
-      micBtn.textContent = '🎤 İzin verilmedi';
-      return;
-    }
-    micEnabled = true;
-    micBtn.textContent = '🎤 Açık (kapatmak için tıkla)';
-    micBtn.classList.add('on');
-    for (const p of otherPlayers) connectToPeer(p.id);
-  }
-
-  function toggleMute(){
-    if (!localStream) return;
-    micMuted = !micMuted;
-    localStream.getAudioTracks().forEach(t => { t.enabled = !micMuted; });
-    micBtn.classList.toggle('muted', micMuted);
-    micBtn.textContent = micMuted ? '🎤 Susturuldu (aç için tıkla)' : '🎤 Açık (kapatmak için tıkla)';
-  }
-
-  micBtn.addEventListener('click', () => {
-    if (!micEnabled) enableMic();
-    else toggleMute();
+  chatSend.addEventListener('click', sendChat);
+  chatInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') sendChat();
   });
 
   function connect(){
@@ -357,7 +303,7 @@
     ws.onclose = () => { wsConnected = false; connNote.hidden = false; setTimeout(connect, 1500); };
     ws.onerror = () => { ws.close(); };
 
-    ws.onmessage = async (event) => {
+    ws.onmessage = (event) => {
       let msg;
       try { msg = JSON.parse(event.data); } catch (e) { return; }
 
@@ -366,31 +312,13 @@
       } else if (msg.type === 'state') {
         otherPlayers = msg.players.filter(p => p.id !== myId);
         playerCountEl.textContent = (otherPlayers.length + 1) + ' OYUNCU';
-
-        const currentIds = new Set(otherPlayers.map(p => p.id));
-        if (micEnabled) {
-          for (const id of currentIds) {
-            if (!peerConnections.has(id)) connectToPeer(id);
-          }
-        }
-        for (const id of Array.from(peerConnections.keys())) {
-          if (!currentIds.has(id)) closePeer(id);
-        }
       } else if (msg.type === 'honk') {
         playHonk();
         addPulse(msg.x, msg.y, msg.color || '#ffffff');
-      } else if (msg.type === 'rtc-offer') {
-        const pc = ensurePeerConnection(msg.from);
-        await pc.setRemoteDescription(new RTCSessionDescription(msg.payload));
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        sendJSON({ type: 'rtc-answer', to: msg.from, payload: answer });
-      } else if (msg.type === 'rtc-answer') {
-        const pc = peerConnections.get(msg.from);
-        if (pc) await pc.setRemoteDescription(new RTCSessionDescription(msg.payload));
-      } else if (msg.type === 'rtc-ice') {
-        const pc = peerConnections.get(msg.from);
-        if (pc) { try { await pc.addIceCandidate(new RTCIceCandidate(msg.payload)); } catch (e) { /* ignore */ } }
+      } else if (msg.type === 'chat') {
+        if (msg.id !== myId) {
+          chatBubbles.set(msg.id, { text: msg.text, start: performance.now() });
+        }
       }
     };
   }
@@ -466,7 +394,9 @@
     }
   }
 
-  function drawPlayer(nx, ny, color, label, isMe){
+  const CHAT_TTL = 4000;
+
+  function drawPlayer(id, nx, ny, color, label, isMe, now){
     const x = nx * canvas.width;
     const y = ny * canvas.height;
     const r = 16 * devicePixelRatio;
@@ -490,6 +420,38 @@
     ctx.fillStyle = '#f1edfb';
     ctx.textAlign = 'center';
     ctx.fillText(label + (isMe ? ' (sen)' : ''), x, y - r - 10 * devicePixelRatio);
+
+    const bubble = chatBubbles.get(id);
+    if (bubble) {
+      const age = now - bubble.start;
+      if (age > CHAT_TTL) {
+        chatBubbles.delete(id);
+      } else {
+        ctx.save();
+        ctx.globalAlpha = age > CHAT_TTL - 500 ? (CHAT_TTL - age) / 500 : 1;
+        ctx.font = (12 * devicePixelRatio) + "px 'Inter', system-ui, sans-serif";
+        const paddingX = 10 * devicePixelRatio;
+        const paddingY = 6 * devicePixelRatio;
+        const textWidth = ctx.measureText(bubble.text).width;
+        const bw = textWidth + paddingX * 2;
+        const bh = 22 * devicePixelRatio;
+        const bx = x - bw / 2;
+        const by = y - r - 34 * devicePixelRatio - bh;
+        ctx.fillStyle = '#1c1830ee';
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.5 * devicePixelRatio;
+        ctx.beginPath();
+        ctx.roundRect(bx, by, bw, bh, 8 * devicePixelRatio);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#f1edfb';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(bubble.text, x, by + bh / 2 + 1);
+        ctx.textBaseline = 'alphabetic';
+        ctx.restore();
+      }
+    }
   }
 
   function drawPulses(now){
@@ -517,10 +479,10 @@
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     drawGrid();
 
-    drawPlayer(player.x, player.y, myColor, myName, true);
+    drawPlayer(myId, player.x, player.y, myColor, myName, true, now);
     for (const p of otherPlayers) {
       if (typeof p.x !== 'number' || typeof p.y !== 'number') continue;
-      drawPlayer(p.x, p.y, p.color || '#888', p.name || 'Oyuncu', false);
+      drawPlayer(p.id, p.x, p.y, p.color || '#888', p.name || 'Oyuncu', false, now);
     }
 
     drawPulses(now);
