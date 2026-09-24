@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Düt Arena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600;700&display=swap">
+<style>
+  :root{
+    --bg:#100e1c;
+    --grid:#241f3a;
+    --panel:#1c1830ee;
+    --panel-border:#3a3260;
+    --text:#f1edfb;
+    --text-dim:#a49bcf;
+    --accent:#ffce3d;
+    --accent-2:#ff4d94;
+    color-scheme: dark;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Inter',system-ui,sans-serif;
+    overflow:hidden;
+  }
+  #arena{
+    display:block;
+    width:100vw;
+    height:100vh;
+    touch-action:none;
+  }
+  .hud{
+    position:fixed;
+    display:flex;
+    gap:8px;
+    align-items:center;
+    z-index:5;
+  }
+  #title-hud{
+    top:calc(16px + env(safe-area-inset-top,0px));
+    left:16px;
+    flex-direction:column;
+    align-items:flex-start;
+    gap:4px;
+  }
+  #title-hud h1{
+    font-family:'Press Start 2P',monospace;
+    font-size:13px;
+    margin:0;
+    color:var(--accent);
+    text-shadow:0 0 12px #ffce3d55;
+    letter-spacing:1px;
+  }
+  #player-count{
+    font-family:'Press Start 2P',monospace;
+    font-size:9px;
+    color:var(--text-dim);
+    background:var(--panel);
+    border:1px solid var(--panel-border);
+    padding:6px 10px;
+    border-radius:6px;
+  }
+  #hint-bar{
+    bottom:calc(16px + env(safe-area-inset-bottom,0px));
+    left:50%;
+    transform:translateX(-50%);
+    background:var(--panel);
+    border:1px solid var(--panel-border);
+    padding:8px 16px;
+    border-radius:999px;
+    font-size:12px;
+    color:var(--text-dim);
+    white-space:nowrap;
+  }
+  #hint-bar kbd{
+    font-family:'Press Start 2P',monospace;
+    font-size:8px;
+    background:#000000aa;
+    border:1px solid var(--panel-border);
+    border-radius:4px;
+    padding:2px 5px;
+    color:var(--text);
+    margin:0 2px;
+  }
+  #honk-btn{
+    position:fixed;
+    right:calc(20px + env(safe-area-inset-right,0px));
+    bottom:calc(24px + env(safe-area-inset-bottom,0px));
+    width:76px;
+    height:76px;
+    border-radius:50%;
+    border:3px solid var(--accent-2);
+    background:radial-gradient(circle at 35% 30%, #ff85b8, var(--accent-2));
+    color:#2a0018;
+    font-family:'Press Start 2P',monospace;
+    font-size:10px;
+    box-shadow:0 0 24px #ff4d9466, inset 0 0 10px #ffffff55;
+    z-index:6;
+    cursor:pointer;
+    -webkit-tap-highlight-color:transparent;
+  }
+  #honk-btn:active{ transform:scale(0.92); }
+  #conn-note{
+    position:fixed;
+    top:calc(16px + env(safe-area-inset-top,0px));
+    right:16px;
+    font-size:11px;
+    color:var(--text-dim);
+    background:var(--panel);
+    border:1px solid var(--panel-border);
+    padding:6px 10px;
+    border-radius:6px;
+    z-index:5;
+    max-width:220px;
+  }
+  [hidden]{display:none!important}
+  @media (max-width:520px){
+    #hint-bar{ font-size:10px; padding:7px 12px; }
+    #title-hud h1{ font-size:11px; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="arena"></canvas>
+
+<div class="hud" id="title-hud">
+  <h1>DÜT ARENA</h1>
+  <div id="player-count">1 OYUNCU</div>
+</div>
+
+<div class="hud" id="hint-bar">
+  <span id="hint-desktop">WASD hareket · sol tık düt</span>
+  <span id="hint-mobile" hidden>parmağını sürükle · DÜT'e bas</span>
+</div>
+
+<div id="conn-note" hidden>Sunucuya bağlanılamadı — tekrar bağlanmaya çalışılıyor…</div>
+
+<button id="honk-btn" type="button">DÜT</button>
+
+<script>
+(function(){
+  "use strict";
+
+  const canvas = document.getElementById('arena');
+  const ctx = canvas.getContext('2d');
+  const playerCountEl = document.getElementById('player-count');
+  const connNote = document.getElementById('conn-note');
+  const honkBtn = document.getElementById('honk-btn');
+  const hintDesktop = document.getElementById('hint-desktop');
+  const hintMobile = document.getElementById('hint-mobile');
+
+  const isTouch = matchMedia('(pointer:coarse)').matches;
+  hintDesktop.hidden = isTouch;
+  hintMobile.hidden = !isTouch;
+
+  function resize(){
+    canvas.width = window.innerWidth * devicePixelRatio;
+    canvas.height = window.innerHeight * devicePixelRatio;
+    canvas.style.width = window.innerWidth + 'px';
+    canvas.style.height = window.innerHeight + 'px';
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  const ADJ = ['Hızlı','Neon','Gölge','Turbo','Meraklı','Cesur','Sessiz','Parlak','Vahşi','Şanslı'];
+  const NOUN = ['Tilki','Kedi','Kartal','Robot','Şahin','Kaplan','Ejder','Baykuş','Kurt','Roket'];
+  const COLORS = ['#ff4d94','#ffce3d','#4dd6ff','#7dff6b','#c76bff','#ff8a4d','#4dffb8','#ff4d4d'];
+
+  const myName = ADJ[Math.floor(Math.random()*ADJ.length)] + ' ' + NOUN[Math.floor(Math.random()*NOUN.length)];
+  const myColor = COLORS[Math.floor(Math.random()*COLORS.length)];
+
+  const player = { x: 0.5, y: 0.5 };
+  const keys = {};
+  const SPEED = 0.55;
+  let touchTarget = null;
+  let myId = null;
+  let otherPlayers = [];
+
+  window.addEventListener('keydown', (e) => {
+    const k = e.key.toLowerCase();
+    if (['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].includes(k)) {
+      keys[k] = true;
+      e.preventDefault();
+    }
+  });
+  window.addEventListener('keyup', (e) => {
+    keys[e.key.toLowerCase()] = false;
+  });
+
+  function canvasPointToNorm(clientX, clientY){
+    return { x: clientX / window.innerWidth, y: clientY / window.innerHeight };
+  }
+
+  canvas.addEventListener('touchstart', (e) => {
+    const t = e.touches[0];
+    touchTarget = canvasPointToNorm(t.clientX, t.clientY);
+  }, {passive:true});
+  canvas.addEventListener('touchmove', (e) => {
+    const t = e.touches[0];
+    touchTarget = canvasPointToNorm(t.clientX, t.clientY);
+  }, {passive:true});
+  canvas.addEventListener('touchend', () => { touchTarget = null; }, {passive:true});
+
+  let audioCtx = null;
+  function ensureAudio(){
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+
+  function playHonk(){
+    try {
+      const ac = ensureAudio();
+      const osc = ac.createOscillator();
+      const gain = ac.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(620, ac.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(220, ac.currentTime + 0.16);
+      gain.gain.setValueAtTime(0.15, ac.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.18);
+      osc.connect(gain).connect(ac.destination);
+      osc.start();
+      osc.stop(ac.currentTime + 0.2);
+    } catch (err) { /* audio unavailable, silently skip */ }
+  }
+
+  const pulses = [];
+  function addPulse(x, y, color){
+    pulses.push({ x, y, color, start: performance.now() });
+  }
+
+  let ws = null;
+  let wsConnected = false;
+
+  function connect(){
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    ws = new WebSocket(proto + '//' + location.host);
+
+    ws.onopen = () => { wsConnected = true; connNote.hidden = true; };
+    ws.onclose = () => { wsConnected = false; connNote.hidden = false; setTimeout(connect, 1500); };
+    ws.onerror = () => { ws.close(); };
+
+    ws.onmessage = (event) => {
+      let msg;
+      try { msg = JSON.parse(event.data); } catch (e) { return; }
+
+      if (msg.type === 'init') {
+        myId = msg.id;
+      } else if (msg.type === 'state') {
+        otherPlayers = msg.players.filter(p => p.id !== myId);
+        playerCountEl.textContent = (otherPlayers.length + 1) + ' OYUNCU';
+      } else if (msg.type === 'honk') {
+        playHonk();
+        addPulse(msg.x, msg.y, msg.color || '#ffffff');
+      }
+    };
+  }
+  connect();
+
+  function sendJSON(obj){
+    if (ws && wsConnected) {
+      try { ws.send(JSON.stringify(obj)); } catch (e) { /* ignore */ }
+    }
+  }
+
+  function localHonk(){
+    playHonk();
+    addPulse(player.x, player.y, myColor);
+    sendJSON({ type: 'honk', x: player.x, y: player.y, color: myColor });
+  }
+
+  honkBtn.addEventListener('click', localHonk);
+  canvas.addEventListener('mousedown', (e) => {
+    if (e.button === 0) localHonk();
+  });
+
+  let lastT = performance.now();
+  let lastPresenceSent = 0;
+
+  function tick(now){
+    const dt = Math.min((now - lastT) / 1000, 0.05);
+    lastT = now;
+
+    let dx = 0, dy = 0;
+    if (keys['w'] || keys['arrowup']) dy -= 1;
+    if (keys['s'] || keys['arrowdown']) dy += 1;
+    if (keys['a'] || keys['arrowleft']) dx -= 1;
+    if (keys['d'] || keys['arrowright']) dx += 1;
+
+    if (dx !== 0 || dy !== 0) {
+      const len = Math.hypot(dx, dy);
+      player.x += (dx / len) * SPEED * dt;
+      player.y += (dy / len) * SPEED * dt;
+    } else if (touchTarget) {
+      const tdx = touchTarget.x - player.x;
+      const tdy = touchTarget.y - player.y;
+      const dist = Math.hypot(tdx, tdy);
+      if (dist > 0.01) {
+        player.x += (tdx / dist) * SPEED * dt;
+        player.y += (tdy / dist) * SPEED * dt;
+      }
+    }
+
+    const margin = 0.03;
+    player.x = Math.max(margin, Math.min(1 - margin, player.x));
+    player.y = Math.max(margin, Math.min(1 - margin, player.y));
+
+    if (now - lastPresenceSent > 50) {
+      sendJSON({ type: 'presence', x: player.x, y: player.y, color: myColor, name: myName });
+      lastPresenceSent = now;
+    }
+
+    render(now);
+    requestAnimationFrame(tick);
+  }
+
+  function drawGrid(){
+    const w = canvas.width, h = canvas.height;
+    const step = 48 * devicePixelRatio;
+    ctx.strokeStyle = '#241f3a';
+    ctx.lineWidth = 1;
+    for (let gx = 0; gx < w; gx += step) {
+      ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, h); ctx.stroke();
+    }
+    for (let gy = 0; gy < h; gy += step) {
+      ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(w, gy); ctx.stroke();
+    }
+  }
+
+  function drawPlayer(nx, ny, color, label, isMe){
+    const x = nx * canvas.width;
+    const y = ny * canvas.height;
+    const r = 16 * devicePixelRatio;
+
+    ctx.save();
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 18 * devicePixelRatio;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.strokeStyle = '#ffffffcc';
+    ctx.lineWidth = 2 * devicePixelRatio;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.font = (10 * devicePixelRatio) + "px 'Press Start 2P', monospace";
+    ctx.fillStyle = '#f1edfb';
+    ctx.textAlign = 'center';
+    ctx.fillText(label + (isMe ? ' (sen)' : ''), x, y - r - 10 * devicePixelRatio);
+  }
+
+  function drawPulses(now){
+    for (let i = pulses.length - 1; i >= 0; i--) {
+      const p = pulses[i];
+      const age = (now - p.start) / 1000;
+      if (age > 0.6) { pulses.splice(i, 1); continue; }
+      const t = age / 0.6;
+      const x = p.x * canvas.width;
+      const y = p.y * canvas.height;
+      const r = (16 + t * 60) * devicePixelRatio;
+      ctx.save();
+      ctx.globalAlpha = 1 - t;
+      ctx.strokeStyle = p.color;
+      ctx.lineWidth = 4 * devicePixelRatio;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  function render(now){
+    ctx.fillStyle = '#100e1c';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    drawGrid();
+
+    drawPlayer(player.x, player.y, myColor, myName, true);
+    for (const p of otherPlayers) {
+      if (typeof p.x !== 'number' || typeof p.y !== 'number') continue;
+      drawPlayer(p.x, p.y, p.color || '#888', p.name || 'Oyuncu', false);
+    }
+
+    drawPulses(now);
+  }
+
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
