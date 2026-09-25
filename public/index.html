@@ -495,7 +495,8 @@
   let otherPlayers = [];
 
   window.addEventListener('keydown', (e) => {
-    if (document.activeElement === chatInput) return;
+    const active = document.activeElement;
+    if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
     const k = e.key.toLowerCase();
     if (['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].includes(k)) {
       keys[k] = true;
