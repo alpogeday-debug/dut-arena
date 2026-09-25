@@ -280,6 +280,22 @@
     text-align:center;
     padding:12px 0;
   }
+  #name-btn{
+    position:fixed;
+    top:calc(16px + env(safe-area-inset-top,0px));
+    left:calc(16px + env(safe-area-inset-left,0px));
+    padding:8px 14px;
+    border-radius:999px;
+    border:2px solid var(--panel-border);
+    background:var(--panel);
+    color:var(--text);
+    font-family:'Inter',system-ui,sans-serif;
+    font-size:12px;
+    font-weight:600;
+    cursor:pointer;
+    z-index:11;
+  }
+  #name-btn:hover{ border-color:var(--accent); }
 </style>
 </head>
 <body>
@@ -305,10 +321,21 @@
 </div>
 
 <div class="screen" id="screen-home">
+  <button id="name-btn" type="button">🧑 Ad Gir</button>
   <div class="menu-panel">
     <h1>DÜT ARENA</h1>
     <button class="menu-btn primary" id="btn-go-join" type="button">Gruba Katıl</button>
     <button class="menu-btn" id="btn-go-create" type="button">Grup Oluştur</button>
+  </div>
+</div>
+
+<div class="screen" id="screen-name" hidden>
+  <div class="menu-panel">
+    <h2>AD GİR</h2>
+    <input class="menu-input" id="name-input" type="text" placeholder="Adın" maxlength="20">
+    <p class="menu-error" id="name-error"></p>
+    <button class="menu-btn primary" id="btn-name-submit" type="button">Kaydet</button>
+    <button class="menu-btn ghost" id="btn-name-back" type="button">Geri</button>
   </div>
 </div>
 
@@ -365,6 +392,7 @@
     create: document.getElementById('screen-create'),
     joinList: document.getElementById('screen-join-list'),
     password: document.getElementById('screen-password'),
+    name: document.getElementById('screen-name'),
   };
   const gameEls = [canvas, titleHud, hintBar, honkBtn, chatBox];
 
@@ -451,6 +479,27 @@
     sendJSON({ type: 'join-room', name: pendingRoomName, password: password || null });
   });
 
+  const nameBtn = document.getElementById('name-btn');
+  function updateNameBtn(){
+    nameBtn.textContent = '🧑 ' + myName;
+  }
+
+  nameBtn.addEventListener('click', () => {
+    document.getElementById('name-input').value = myName;
+    document.getElementById('name-error').textContent = '';
+    showScreen('name');
+  });
+  document.getElementById('btn-name-back').addEventListener('click', () => showScreen('home'));
+  document.getElementById('btn-name-submit').addEventListener('click', () => {
+    const name = document.getElementById('name-input').value.trim();
+    if (!name) {
+      document.getElementById('name-error').textContent = 'İsim boş olamaz.';
+      return;
+    }
+    sendJSON({ type: 'set-name', name });
+  });
+  updateNameBtn();
+
   titleLink.addEventListener('click', leaveRoom);
   titleLink.addEventListener('keydown', (e) => { if (e.key === 'Enter') leaveRoom(); });
 
@@ -484,7 +533,7 @@
   const NOUN = ['Tilki','Kedi','Kartal','Robot','Şahin','Kaplan','Ejder','Baykuş','Kurt','Roket'];
   const COLORS = ['#ff4d94','#ffce3d','#4dd6ff','#7dff6b','#c76bff','#ff8a4d','#4dffb8','#ff4d4d'];
 
-  const myName = ADJ[Math.floor(Math.random()*ADJ.length)] + ' ' + NOUN[Math.floor(Math.random()*NOUN.length)];
+  let myName = ADJ[Math.floor(Math.random()*ADJ.length)] + ' ' + NOUN[Math.floor(Math.random()*NOUN.length)];
   const myColor = COLORS[Math.floor(Math.random()*COLORS.length)];
 
   const player = { x: 0.5, y: 0.5 };
@@ -596,6 +645,13 @@
         player.x = 0.5;
         player.y = 0.5;
         showGame();
+      } else if (msg.type === 'name-ok') {
+        myName = msg.name;
+        updateNameBtn();
+        showScreen('home');
+      } else if (msg.type === 'name-error') {
+        document.getElementById('name-error').textContent =
+          msg.reason === 'taken' ? 'Bu isim kullanılıyor, lütfen başka bir isim girin.' : 'İsim boş olamaz.';
       } else if (msg.type === 'create-error') {
         document.getElementById('create-error').textContent =
           msg.reason === 'taken' ? 'Geçersiz isim, lütfen değiştirin.' : 'Grup adı zorunlu.';

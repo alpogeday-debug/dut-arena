@@ -11,6 +11,7 @@ const wss = new WebSocket.Server({ server });
 
 // rooms: Map(name -> { password: string|null, players: Map(ws -> {id,x,y,color,name}) })
 const rooms = new Map();
+const takenNames = new Map(); // lowercase name -> ws
 let nextId = 1;
 
 function roomListPayload() {
@@ -68,6 +69,25 @@ wss.on('connection', (ws) => {
     try {
       msg = JSON.parse(raw);
     } catch (e) {
+      return;
+    }
+
+    if (msg.type === 'set-name') {
+      const name = String(msg.name || '').trim().slice(0, 20);
+      if (!name) {
+        ws.send(JSON.stringify({ type: 'name-error', reason: 'empty' }));
+        return;
+      }
+      const key = name.toLowerCase();
+      const holder = takenNames.get(key);
+      if (holder && holder !== ws) {
+        ws.send(JSON.stringify({ type: 'name-error', reason: 'taken' }));
+        return;
+      }
+      if (ws.chosenNameKey) takenNames.delete(ws.chosenNameKey);
+      takenNames.set(key, ws);
+      ws.chosenNameKey = key;
+      ws.send(JSON.stringify({ type: 'name-ok', name }));
       return;
     }
 
@@ -137,6 +157,7 @@ wss.on('connection', (ws) => {
 
   ws.on('close', () => {
     leaveRoom(ws);
+    if (ws.chosenNameKey) takenNames.delete(ws.chosenNameKey);
   });
 });
 
