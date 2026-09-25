@@ -50,11 +50,7 @@ function leaveRoom(ws) {
   const room = rooms.get(roomName);
   if (room) {
     room.players.delete(ws);
-    if (room.players.size === 0) {
-      rooms.delete(roomName);
-    } else {
-      broadcastToRoom(roomName, roomStateMessage(roomName));
-    }
+    broadcastToRoom(roomName, roomStateMessage(roomName));
   }
   ws.roomName = null;
   broadcastRoomList();
