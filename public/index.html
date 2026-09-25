@@ -396,6 +396,13 @@
   };
   const gameEls = [canvas, titleHud, hintBar, honkBtn, chatBox];
 
+  const ADJ = ['Hızlı','Neon','Gölge','Turbo','Meraklı','Cesur','Sessiz','Parlak','Vahşi','Şanslı'];
+  const NOUN = ['Tilki','Kedi','Kartal','Robot','Şahin','Kaplan','Ejder','Baykuş','Kurt','Roket'];
+  const COLORS = ['#ff4d94','#ffce3d','#4dd6ff','#7dff6b','#c76bff','#ff8a4d','#4dffb8','#ff4d4d'];
+
+  let myName = ADJ[Math.floor(Math.random()*ADJ.length)] + ' ' + NOUN[Math.floor(Math.random()*NOUN.length)];
+  const myColor = COLORS[Math.floor(Math.random()*COLORS.length)];
+
   let inRoom = false;
   let currentRoomName = null;
   let pendingRoomName = null;
@@ -528,13 +535,6 @@
   }
   resize();
   window.addEventListener('resize', resize);
-
-  const ADJ = ['Hızlı','Neon','Gölge','Turbo','Meraklı','Cesur','Sessiz','Parlak','Vahşi','Şanslı'];
-  const NOUN = ['Tilki','Kedi','Kartal','Robot','Şahin','Kaplan','Ejder','Baykuş','Kurt','Roket'];
-  const COLORS = ['#ff4d94','#ffce3d','#4dd6ff','#7dff6b','#c76bff','#ff8a4d','#4dffb8','#ff4d4d'];
-
-  let myName = ADJ[Math.floor(Math.random()*ADJ.length)] + ' ' + NOUN[Math.floor(Math.random()*NOUN.length)];
-  const myColor = COLORS[Math.floor(Math.random()*COLORS.length)];
 
   const player = { x: 0.5, y: 0.5 };
   const keys = {};
