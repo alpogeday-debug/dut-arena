@@ -296,6 +296,31 @@
     z-index:11;
   }
   #name-btn:hover{ border-color:var(--accent); }
+  .color-swatches{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    justify-content:center;
+  }
+  .color-swatch{
+    width:32px;
+    height:32px;
+    border-radius:50%;
+    border:3px solid transparent;
+    cursor:pointer;
+    padding:0;
+  }
+  .color-swatch.selected{
+    border-color:#fff;
+    box-shadow:0 0 0 2px var(--bg), 0 0 10px 2px currentColor;
+  }
+  .name-dot{
+    display:inline-block;
+    width:9px;
+    height:9px;
+    border-radius:50%;
+    margin-right:6px;
+  }
 </style>
 </head>
 <body>
@@ -333,6 +358,7 @@
   <div class="menu-panel">
     <h2>AD GİR</h2>
     <input class="menu-input" id="name-input" type="text" placeholder="Adın" maxlength="20">
+    <div class="color-swatches" id="color-swatches"></div>
     <p class="menu-error" id="name-error"></p>
     <button class="menu-btn primary" id="btn-name-submit" type="button">Kaydet</button>
     <button class="menu-btn ghost" id="btn-name-back" type="button">Geri</button>
@@ -401,7 +427,7 @@
   const COLORS = ['#ff4d94','#ffce3d','#4dd6ff','#7dff6b','#c76bff','#ff8a4d','#4dffb8','#ff4d4d'];
 
   let myName = ADJ[Math.floor(Math.random()*ADJ.length)] + ' ' + NOUN[Math.floor(Math.random()*NOUN.length)];
-  const myColor = COLORS[Math.floor(Math.random()*COLORS.length)];
+  let myColor = COLORS[Math.floor(Math.random()*COLORS.length)];
 
   let inRoom = false;
   let currentRoomName = null;
@@ -488,12 +514,40 @@
 
   const nameBtn = document.getElementById('name-btn');
   function updateNameBtn(){
-    nameBtn.textContent = '🧑 ' + myName;
+    nameBtn.innerHTML = '';
+    const dot = document.createElement('span');
+    dot.className = 'name-dot';
+    dot.style.background = myColor;
+    nameBtn.appendChild(dot);
+    nameBtn.appendChild(document.createTextNode(myName));
+  }
+
+  const colorSwatchesEl = document.getElementById('color-swatches');
+  COLORS.forEach((c) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'color-swatch';
+    btn.style.background = c;
+    btn.style.color = c;
+    btn.addEventListener('click', () => {
+      myColor = c;
+      colorSwatchesEl.querySelectorAll('.color-swatch').forEach(el => el.classList.remove('selected'));
+      btn.classList.add('selected');
+      updateNameBtn();
+    });
+    colorSwatchesEl.appendChild(btn);
+  });
+
+  function markSelectedColor(){
+    colorSwatchesEl.querySelectorAll('.color-swatch').forEach((el, i) => {
+      el.classList.toggle('selected', COLORS[i] === myColor);
+    });
   }
 
   nameBtn.addEventListener('click', () => {
     document.getElementById('name-input').value = myName;
     document.getElementById('name-error').textContent = '';
+    markSelectedColor();
     showScreen('name');
   });
   document.getElementById('btn-name-back').addEventListener('click', () => showScreen('home'));
