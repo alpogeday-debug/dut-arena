@@ -296,6 +296,34 @@
     z-index:11;
   }
   #name-btn:hover{ border-color:var(--accent); }
+  #auth-area{
+    position:fixed;
+    top:calc(16px + env(safe-area-inset-top,0px));
+    right:calc(16px + env(safe-area-inset-right,0px));
+    display:flex;
+    gap:8px;
+    z-index:11;
+  }
+  .auth-btn{
+    padding:8px 14px;
+    border-radius:999px;
+    border:2px solid var(--panel-border);
+    background:var(--panel);
+    color:var(--text);
+    font-family:'Inter',system-ui,sans-serif;
+    font-size:12px;
+    font-weight:600;
+    cursor:pointer;
+    text-decoration:none;
+    display:inline-flex;
+    align-items:center;
+  }
+  .auth-btn:hover{ border-color:var(--accent); }
+  .room-row .owner-tag{
+    font-size:10px;
+    color:var(--accent);
+    margin-left:6px;
+  }
   .color-swatches{
     display:flex;
     flex-wrap:wrap;
@@ -347,6 +375,7 @@
 
 <div class="screen" id="screen-home">
   <button id="name-btn" type="button">🧑 Ad Gir</button>
+  <div id="auth-area"></div>
   <div class="menu-panel">
     <h1>DÜT ARENA</h1>
     <button class="menu-btn primary" id="btn-go-join" type="button">Gruba Katıl</button>
@@ -428,6 +457,48 @@
 
   let myName = ADJ[Math.floor(Math.random()*ADJ.length)] + ' ' + NOUN[Math.floor(Math.random()*NOUN.length)];
   let myColor = COLORS[Math.floor(Math.random()*COLORS.length)];
+  let myUserId = null;
+
+  const authAreaEl = document.getElementById('auth-area');
+  function renderAuthArea(info){
+    authAreaEl.innerHTML = '';
+    if (info.loggedIn) {
+      const label = document.createElement('span');
+      label.className = 'auth-btn';
+      label.textContent = '👋 ' + info.name;
+      const logout = document.createElement('a');
+      logout.className = 'auth-btn';
+      logout.href = '/auth/logout';
+      logout.textContent = 'Çıkış Yap';
+      authAreaEl.appendChild(label);
+      authAreaEl.appendChild(logout);
+    } else {
+      if (info.googleEnabled) {
+        const g = document.createElement('a');
+        g.className = 'auth-btn';
+        g.href = '/auth/google';
+        g.textContent = 'Google ile Giriş';
+        authAreaEl.appendChild(g);
+      }
+      if (info.githubEnabled) {
+        const gh = document.createElement('a');
+        gh.className = 'auth-btn';
+        gh.href = '/auth/github';
+        gh.textContent = 'GitHub ile Giriş';
+        authAreaEl.appendChild(gh);
+      }
+    }
+  }
+
+  fetch('/api/me').then(r => r.json()).then((info) => {
+    renderAuthArea(info);
+    if (info.loggedIn) {
+      myUserId = info.id;
+      if (info.name) myName = info.name;
+      if (info.color) myColor = info.color;
+      updateNameBtn();
+    }
+  }).catch(() => { /* auth unavailable, stay anonymous */ });
 
   let inRoom = false;
   let currentRoomName = null;
@@ -457,7 +528,8 @@
       const row = document.createElement('button');
       row.type = 'button';
       row.className = 'room-row';
-      row.innerHTML = '<span>' + (room.hasPassword ? '🔒 ' : '') + escapeHtml(room.name) + '</span>' +
+      const ownedTag = (myUserId && room.ownerId === myUserId) ? '<span class="owner-tag">★ senin</span>' : '';
+      row.innerHTML = '<span>' + (room.hasPassword ? '🔒 ' : '') + escapeHtml(room.name) + ownedTag + '</span>' +
         '<span class="count">' + room.count + ' OYUNCU</span>';
       row.addEventListener('click', () => attemptJoin(room.name, room.hasPassword));
       listEl.appendChild(row);
@@ -557,7 +629,7 @@
       document.getElementById('name-error').textContent = 'İsim boş olamaz.';
       return;
     }
-    sendJSON({ type: 'set-name', name });
+    sendJSON({ type: 'set-profile', name, color: myColor });
   });
   updateNameBtn();
 
@@ -699,11 +771,12 @@
         player.x = 0.5;
         player.y = 0.5;
         showGame();
-      } else if (msg.type === 'name-ok') {
+      } else if (msg.type === 'profile-ok') {
         myName = msg.name;
+        if (msg.color) myColor = msg.color;
         updateNameBtn();
         showScreen('home');
-      } else if (msg.type === 'name-error') {
+      } else if (msg.type === 'profile-error') {
         document.getElementById('name-error').textContent =
           msg.reason === 'taken' ? 'Bu isim kullanılıyor, lütfen başka bir isim girin.' : 'İsim boş olamaz.';
       } else if (msg.type === 'create-error') {
