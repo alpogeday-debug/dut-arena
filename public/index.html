@@ -298,9 +298,10 @@
   #name-btn:hover{ border-color:var(--accent); }
   #auth-area{
     position:fixed;
-    top:calc(16px + env(safe-area-inset-top,0px));
-    right:calc(16px + env(safe-area-inset-right,0px));
+    top:calc(16px + env(safe-area-inset-top,0px) + 46px);
+    left:calc(16px + env(safe-area-inset-left,0px));
     display:flex;
+    flex-wrap:wrap;
     gap:8px;
     z-index:11;
   }
