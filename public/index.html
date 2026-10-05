@@ -296,6 +296,18 @@
     z-index:11;
   }
   #name-btn:hover{ border-color:var(--accent); }
+  #delete-room-btn{
+    font-family:'Inter',system-ui,sans-serif;
+    font-size:11px;
+    font-weight:600;
+    color:var(--accent-2);
+    background:var(--panel);
+    border:1px solid var(--accent-2);
+    padding:6px 10px;
+    border-radius:6px;
+    cursor:pointer;
+  }
+  #delete-room-btn:hover{ background:#ff4d9422; }
   #auth-area{
     position:fixed;
     top:calc(16px + env(safe-area-inset-top,0px) + 46px);
@@ -359,6 +371,7 @@
 <div class="hud" id="title-hud" hidden>
   <h1 id="title-link" role="button" tabindex="0">DÜT ARENA</h1>
   <div id="player-count">1 OYUNCU</div>
+  <button id="delete-room-btn" type="button" hidden>🗑️ Grubu Sil</button>
 </div>
 
 <div class="hud" id="hint-bar" hidden>
@@ -440,6 +453,7 @@
   const hintMobile = document.getElementById('hint-mobile');
   const titleHud = document.getElementById('title-hud');
   const titleLink = document.getElementById('title-link');
+  const deleteRoomBtn = document.getElementById('delete-room-btn');
   const hintBar = document.getElementById('hint-bar');
   const chatBox = document.getElementById('chat-box');
 
@@ -503,6 +517,7 @@
 
   let inRoom = false;
   let currentRoomName = null;
+  let currentRoomOwnerId = null;
   let pendingRoomName = null;
   let latestRoomList = [];
 
@@ -640,15 +655,26 @@
   function leaveRoom(){
     if (!inRoom) return;
     sendJSON({ type: 'leave-room' });
+    resetRoomState();
+    showScreen('home');
+  }
+
+  function resetRoomState(){
     inRoom = false;
     currentRoomName = null;
+    currentRoomOwnerId = null;
+    deleteRoomBtn.hidden = true;
     otherPlayers = [];
     chatBubbles.clear();
     pulses.length = 0;
     player.x = 0.5;
     player.y = 0.5;
-    showScreen('home');
   }
+
+  deleteRoomBtn.addEventListener('click', () => {
+    if (!confirm('Bu grubu silmek istediğine emin misin? İçindeki herkes gruptan çıkarılacak.')) return;
+    sendJSON({ type: 'delete-room' });
+  });
 
   const isTouch = matchMedia('(pointer:coarse)').matches;
   hintDesktop.hidden = isTouch;
@@ -764,14 +790,16 @@
         latestRoomList = msg.rooms;
         if (!screens.joinList.hidden) renderRoomList();
       } else if (msg.type === 'joined-room') {
+        resetRoomState();
         inRoom = true;
         currentRoomName = msg.name;
-        otherPlayers = [];
-        chatBubbles.clear();
-        pulses.length = 0;
-        player.x = 0.5;
-        player.y = 0.5;
+        currentRoomOwnerId = msg.ownerId || null;
+        deleteRoomBtn.hidden = !(myUserId && currentRoomOwnerId === myUserId);
         showGame();
+      } else if (msg.type === 'room-deleted') {
+        resetRoomState();
+        showScreen('home');
+        alert('Bu grup silindi.');
       } else if (msg.type === 'profile-ok') {
         myName = msg.name;
         if (msg.color) myColor = msg.color;

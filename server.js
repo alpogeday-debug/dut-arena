@@ -259,7 +259,7 @@ wss.on('connection', (ws, req) => {
       if (redis) {
         await redis.set('room:' + name, { password, ownerId: ws.userId, createdAt: Date.now() });
       }
-      ws.send(JSON.stringify({ type: 'joined-room', name }));
+      ws.send(JSON.stringify({ type: 'joined-room', name, ownerId: ws.userId }));
       broadcastRoomList();
       return;
     }
@@ -276,7 +276,7 @@ wss.on('connection', (ws, req) => {
         return;
       }
       ws.roomName = name;
-      ws.send(JSON.stringify({ type: 'joined-room', name }));
+      ws.send(JSON.stringify({ type: 'joined-room', name, ownerId: room.ownerId }));
       broadcastToRoom(name, roomStateMessage(name));
       broadcastRoomList();
       return;
@@ -284,6 +284,27 @@ wss.on('connection', (ws, req) => {
 
     if (msg.type === 'leave-room') {
       leaveRoom(ws);
+      return;
+    }
+
+    if (msg.type === 'delete-room') {
+      const roomName = ws.roomName;
+      if (!roomName) return;
+      const room = rooms.get(roomName);
+      if (!room) return;
+      if (!ws.userId || room.ownerId !== ws.userId) {
+        ws.send(JSON.stringify({ type: 'delete-error', reason: 'not-owner' }));
+        return;
+      }
+      broadcastToRoom(roomName, { type: 'room-deleted' });
+      for (const client of room.players.keys()) {
+        client.roomName = null;
+      }
+      rooms.delete(roomName);
+      if (redis) {
+        await redis.del('room:' + roomName);
+      }
+      broadcastRoomList();
       return;
     }
 
