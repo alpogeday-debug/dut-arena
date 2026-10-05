@@ -308,6 +308,33 @@
     cursor:pointer;
   }
   #delete-room-btn:hover{ background:#ff4d9422; }
+  #notify-area{
+    position:fixed;
+    top:calc(16px + env(safe-area-inset-top,0px));
+    left:50%;
+    transform:translateX(-50%);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:6px;
+    z-index:7;
+    pointer-events:none;
+  }
+  .notify-toast{
+    background:var(--panel);
+    border:1px solid var(--panel-border);
+    color:var(--text);
+    font-size:12px;
+    padding:6px 14px;
+    border-radius:999px;
+    animation:notifyFade 3s ease forwards;
+  }
+  @keyframes notifyFade{
+    0%{ opacity:0; transform:translateY(-6px); }
+    10%{ opacity:1; transform:translateY(0); }
+    80%{ opacity:1; }
+    100%{ opacity:0; }
+  }
   #auth-area{
     position:fixed;
     top:calc(16px + env(safe-area-inset-top,0px) + 46px);
@@ -380,6 +407,7 @@
 </div>
 
 <div id="conn-note" hidden>Sunucuya bağlanılamadı — tekrar bağlanmaya çalışılıyor…</div>
+<div id="notify-area"></div>
 
 <button id="honk-btn" type="button" hidden>DÜT</button>
 <div id="chat-box" hidden>
@@ -454,6 +482,14 @@
   const titleHud = document.getElementById('title-hud');
   const titleLink = document.getElementById('title-link');
   const deleteRoomBtn = document.getElementById('delete-room-btn');
+  const notifyArea = document.getElementById('notify-area');
+  function showNotify(text){
+    const el = document.createElement('div');
+    el.className = 'notify-toast';
+    el.textContent = text;
+    notifyArea.appendChild(el);
+    setTimeout(() => el.remove(), 3000);
+  }
   const hintBar = document.getElementById('hint-bar');
   const chatBox = document.getElementById('chat-box');
 
@@ -663,6 +699,7 @@
     inRoom = false;
     currentRoomName = null;
     currentRoomOwnerId = null;
+    currentItId = null;
     deleteRoomBtn.hidden = true;
     otherPlayers = [];
     chatBubbles.clear();
@@ -695,6 +732,17 @@
   let touchTarget = null;
   let myId = null;
   let otherPlayers = [];
+  let currentItId = null;
+
+  const WALLS = [
+    { x: 0.46, y: 0.08, w: 0.08, h: 0.22 },
+    { x: 0.46, y: 0.70, w: 0.08, h: 0.22 },
+    { x: 0.08, y: 0.46, w: 0.22, h: 0.08 },
+    { x: 0.70, y: 0.46, w: 0.22, h: 0.08 },
+  ];
+  function hitsWall(x, y){
+    return WALLS.some(w => x >= w.x && x <= w.x + w.w && y >= w.y && y <= w.y + w.h);
+  }
 
   window.addEventListener('keydown', (e) => {
     const active = document.activeElement;
@@ -821,6 +869,7 @@
         }
       } else if (msg.type === 'state') {
         otherPlayers = msg.players.filter(p => p.id !== myId);
+        currentItId = msg.itId || null;
         playerCountEl.textContent = (otherPlayers.length + 1) + ' OYUNCU';
       } else if (msg.type === 'honk') {
         playHonk();
@@ -829,6 +878,8 @@
         if (msg.id !== myId) {
           chatBubbles.set(msg.id, { text: msg.text, start: performance.now() });
         }
+      } else if (msg.type === 'notify') {
+        showNotify(msg.text);
       }
     };
   }
@@ -872,15 +923,19 @@
 
     if (dx !== 0 || dy !== 0) {
       const len = Math.hypot(dx, dy);
-      player.x += (dx / len) * SPEED * dt;
-      player.y += (dy / len) * SPEED * dt;
+      const nx = player.x + (dx / len) * SPEED * dt;
+      const ny = player.y + (dy / len) * SPEED * dt;
+      if (!hitsWall(nx, player.y)) player.x = nx;
+      if (!hitsWall(player.x, ny)) player.y = ny;
     } else if (touchTarget) {
       const tdx = touchTarget.x - player.x;
       const tdy = touchTarget.y - player.y;
       const dist = Math.hypot(tdx, tdy);
       if (dist > 0.01) {
-        player.x += (tdx / dist) * SPEED * dt;
-        player.y += (tdy / dist) * SPEED * dt;
+        const nx = player.x + (tdx / dist) * SPEED * dt;
+        const ny = player.y + (tdy / dist) * SPEED * dt;
+        if (!hitsWall(nx, player.y)) player.x = nx;
+        if (!hitsWall(player.x, ny)) player.y = ny;
       }
     }
 
@@ -912,10 +967,39 @@
 
   const CHAT_TTL = 4000;
 
+  function drawWalls(){
+    ctx.save();
+    ctx.fillStyle = '#3a3260aa';
+    ctx.strokeStyle = '#ffce3d88';
+    ctx.lineWidth = 2 * devicePixelRatio;
+    for (const w of WALLS) {
+      const wx = w.x * canvas.width;
+      const wy = w.y * canvas.height;
+      const ww = w.w * canvas.width;
+      const wh = w.h * canvas.height;
+      ctx.fillRect(wx, wy, ww, wh);
+      ctx.strokeRect(wx, wy, ww, wh);
+    }
+    ctx.restore();
+  }
+
   function drawPlayer(id, nx, ny, color, label, isMe, now){
     const x = nx * canvas.width;
     const y = ny * canvas.height;
     const r = 16 * devicePixelRatio;
+    const isIt = id !== null && id === currentItId;
+
+    if (isIt) {
+      ctx.save();
+      ctx.strokeStyle = '#ff4d4d';
+      ctx.lineWidth = 3 * devicePixelRatio;
+      ctx.shadowColor = '#ff4d4d';
+      ctx.shadowBlur = 14 * devicePixelRatio;
+      ctx.beginPath();
+      ctx.arc(x, y, r + 7 * devicePixelRatio, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
 
     ctx.save();
     ctx.shadowColor = color;
@@ -933,9 +1017,9 @@
     ctx.stroke();
 
     ctx.font = (10 * devicePixelRatio) + "px 'Press Start 2P', monospace";
-    ctx.fillStyle = '#f1edfb';
+    ctx.fillStyle = isIt ? '#ff4d4d' : '#f1edfb';
     ctx.textAlign = 'center';
-    ctx.fillText(label + (isMe ? ' (sen)' : ''), x, y - r - 10 * devicePixelRatio);
+    ctx.fillText((isIt ? '🔥 ' : '') + label + (isMe ? ' (sen)' : ''), x, y - r - 10 * devicePixelRatio);
 
     const bubble = chatBubbles.get(id);
     if (bubble) {
@@ -994,6 +1078,7 @@
     ctx.fillStyle = '#100e1c';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     drawGrid();
+    drawWalls();
 
     drawPlayer(myId, player.x, player.y, myColor, myName, true, now);
     for (const p of otherPlayers) {

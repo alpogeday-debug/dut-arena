@@ -148,7 +148,7 @@ async function loadRoomsFromRedis() {
       const data = await redis.get(key);
       if (!data) continue;
       const name = key.slice('room:'.length);
-      rooms.set(name, { password: data.password || null, ownerId: data.ownerId || null, players: new Map() });
+      rooms.set(name, { password: data.password || null, ownerId: data.ownerId || null, itId: null, lastTagAt: 0, players: new Map() });
     }
     console.log('Redis\'ten ' + rooms.size + ' oda yuklendi.');
   } catch (e) {
@@ -184,15 +184,26 @@ function broadcastToRoom(roomName, data, exclude) {
 
 function roomStateMessage(roomName) {
   const room = rooms.get(roomName);
-  return { type: 'state', players: room ? Array.from(room.players.values()) : [] };
+  return { type: 'state', players: room ? Array.from(room.players.values()) : [], itId: room ? room.itId : null };
 }
+
+const TAG_RADIUS = 0.05;
+const TAG_COOLDOWN_MS = 1000;
 
 function leaveRoom(ws) {
   const roomName = ws.roomName;
   if (!roomName) return;
   const room = rooms.get(roomName);
   if (room) {
+    const info = room.players.get(ws);
     room.players.delete(ws);
+    if (info && info.name) {
+      broadcastToRoom(roomName, { type: 'notify', text: info.name + ' ayrıldı' });
+    }
+    if (info && room.itId === info.id) {
+      const remaining = Array.from(room.players.values());
+      room.itId = remaining.length ? remaining[Math.floor(Math.random() * remaining.length)].id : null;
+    }
     broadcastToRoom(roomName, roomStateMessage(roomName));
   }
   ws.roomName = null;
@@ -254,7 +265,7 @@ wss.on('connection', (ws, req) => {
         ws.send(JSON.stringify({ type: 'create-error', reason: 'taken' }));
         return;
       }
-      rooms.set(name, { password, ownerId: ws.userId, players: new Map() });
+      rooms.set(name, { password, ownerId: ws.userId, itId: null, lastTagAt: 0, players: new Map() });
       ws.roomName = name;
       if (redis) {
         await redis.set('room:' + name, { password, ownerId: ws.userId, createdAt: Date.now() });
@@ -313,7 +324,32 @@ wss.on('connection', (ws, req) => {
     if (!room) return;
 
     if (msg.type === 'presence') {
+      const isNewJoin = !room.players.has(ws);
       room.players.set(ws, { id, x: msg.x, y: msg.y, color: msg.color, name: msg.name });
+
+      if (isNewJoin) {
+        broadcastToRoom(ws.roomName, { type: 'notify', text: (msg.name || 'Biri') + ' katıldı' });
+      }
+
+      if (room.itId === null && room.players.size >= 2) {
+        const ids = Array.from(room.players.values()).map((p) => p.id);
+        room.itId = ids[Math.floor(Math.random() * ids.length)];
+      }
+
+      if (room.itId === id) {
+        const now = Date.now();
+        if (now - room.lastTagAt > TAG_COOLDOWN_MS) {
+          for (const p of room.players.values()) {
+            if (p.id === id) continue;
+            if (Math.hypot(p.x - msg.x, p.y - msg.y) < TAG_RADIUS) {
+              room.itId = p.id;
+              room.lastTagAt = now;
+              break;
+            }
+          }
+        }
+      }
+
       broadcastToRoom(ws.roomName, roomStateMessage(ws.roomName));
     } else if (msg.type === 'honk') {
       broadcastToRoom(ws.roomName, { type: 'honk', id, x: msg.x, y: msg.y, color: msg.color }, ws);
