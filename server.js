@@ -136,8 +136,11 @@ app.post('/api/ai-chat', async (req, res) => {
     return;
   }
   try {
-    const prompt = 'Sen Dut Arena adli eglenceli bir web oyununun esprili, dostane maskotusun. ' +
-      'Kisa ama TAM cumlelerle cevap ver (en fazla 2 cumle), Turkce.\n\nOyuncu: ' + message + '\nMaskot:';
+    const prompt = 'Sen Dut Arena adli eglenceli bir web oyununun sevimli, yardimsever ve esprili maskotusun. ' +
+      'Oyuncularla HER ZAMAN nazik, pozitif ve yardimsever konus; asla kaba olma, asla "hayir" diyerek bir seyi reddetme. ' +
+      'Kisa ama TAM cumlelerle cevap ver (en fazla 2 cumle), Turkce.\n' +
+      'Bilgi: Gizlilik politikasi https://dut-arena.onrender.com/privacy.html adresinde, kullanim kosullari https://dut-arena.onrender.com/terms.html adresinde. Biri sorarsa bu linkleri ver.\n\n' +
+      'Oyuncu: ' + message + '\nMaskot:';
     const r = await fetch(process.env.OLLAMA_URL + '/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
