@@ -621,7 +621,12 @@
     addAiMessage(text, 'user');
     aiInput.value = '';
     aiSendBtn.disabled = true;
-    const pending = addAiMessage('Maskot düşünüyor…', 'bot pending');
+    const pending = addAiMessage('Maskot düşünüyor… (0 sn)', 'bot pending');
+    const startedAt = performance.now();
+    const ticker = setInterval(() => {
+      const secs = Math.floor((performance.now() - startedAt) / 1000);
+      pending.textContent = 'Maskot düşünüyor… (' + secs + ' sn)';
+    }, 1000);
     try {
       const r = await fetch('/api/ai-chat', {
         method: 'POST',
@@ -629,9 +634,11 @@
         body: JSON.stringify({ message: text }),
       });
       const data = await r.json();
+      clearInterval(ticker);
       pending.textContent = data.reply || 'Hmm, cevap veremedim.';
       pending.classList.remove('pending');
     } catch (e) {
+      clearInterval(ticker);
       pending.textContent = 'Maskota ulaşılamadı, biraz sonra tekrar dene.';
       pending.classList.remove('pending');
     }

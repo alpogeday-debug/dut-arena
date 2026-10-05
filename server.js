@@ -137,7 +137,7 @@ app.post('/api/ai-chat', async (req, res) => {
   }
   try {
     const prompt = 'Sen Dut Arena adli eglenceli bir web oyununun esprili, dostane maskotusun. ' +
-      'Kisa, samimi, Turkce cevaplar ver (en fazla 2-3 cumle).\n\nOyuncu: ' + message + '\nMaskot:';
+      'Cok kisa cevaplar ver, en fazla 1-2 kisa cumle, Turkce.\n\nOyuncu: ' + message + '\nMaskot:';
     const r = await fetch(process.env.OLLAMA_URL + '/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -145,7 +145,7 @@ app.post('/api/ai-chat', async (req, res) => {
         model: 'llama3.2:3b',
         prompt,
         stream: false,
-        options: { num_predict: 80 },
+        options: { num_predict: 40 },
       }),
       signal: AbortSignal.timeout(45000),
     });
