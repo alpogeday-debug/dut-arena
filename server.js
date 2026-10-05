@@ -99,6 +99,7 @@ app.use(sessionMiddleware);
 app.use(passport.initialize());
 app.use(passport.session());
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.json());
 
 if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
   app.get('/auth/google', passport.authenticate('google', { scope: ['profile'] }));
@@ -112,14 +113,46 @@ app.get('/auth/logout', (req, res) => {
   req.logout(() => res.redirect('/'));
 });
 app.get('/api/me', (req, res) => {
+  const base = {
+    googleEnabled: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
+    githubEnabled: !!(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET),
+    aiEnabled: !!process.env.OLLAMA_URL,
+  };
   if (req.user) {
-    res.json({ loggedIn: true, id: req.user.id, name: req.user.name, color: req.user.color, provider: req.user.provider });
+    res.json({ ...base, loggedIn: true, id: req.user.id, name: req.user.name, color: req.user.color, provider: req.user.provider });
   } else {
-    res.json({
-      loggedIn: false,
-      googleEnabled: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
-      githubEnabled: !!(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET),
+    res.json({ ...base, loggedIn: false });
+  }
+});
+
+app.post('/api/ai-chat', async (req, res) => {
+  if (!process.env.OLLAMA_URL) {
+    res.status(503).json({ error: 'AI yapilandirilmamis' });
+    return;
+  }
+  const message = String((req.body && req.body.message) || '').trim().slice(0, 500);
+  if (!message) {
+    res.status(400).json({ error: 'Mesaj bos olamaz' });
+    return;
+  }
+  try {
+    const prompt = 'Sen Dut Arena adli eglenceli bir web oyununun esprili, dostane maskotusun. ' +
+      'Kisa, samimi, Turkce cevaplar ver (en fazla 2-3 cumle).\n\nOyuncu: ' + message + '\nMaskot:';
+    const r = await fetch(process.env.OLLAMA_URL + '/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'llama3.2:3b',
+        prompt,
+        stream: false,
+        options: { num_predict: 80 },
+      }),
+      signal: AbortSignal.timeout(45000),
     });
+    const data = await r.json();
+    res.json({ reply: data.response || '...' });
+  } catch (e) {
+    res.status(502).json({ error: 'Maskota ulasilamadi' });
   }
 });
 

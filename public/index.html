@@ -389,6 +389,44 @@
     border-radius:50%;
     margin-right:6px;
   }
+  .home-stack{
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+    width:100%;
+    max-width:360px;
+  }
+  .ai-messages{
+    max-height:170px;
+    overflow-y:auto;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    padding:2px;
+  }
+  .ai-msg{
+    max-width:85%;
+    padding:8px 12px;
+    border-radius:10px;
+    font-size:13px;
+    line-height:1.4;
+    word-break:break-word;
+  }
+  .ai-msg.user{
+    align-self:flex-end;
+    background:var(--accent-2);
+    color:#2a0018;
+  }
+  .ai-msg.bot{
+    align-self:flex-start;
+    background:#14111f;
+    border:1px solid var(--panel-border);
+    color:var(--text);
+  }
+  .ai-msg.pending{ color:var(--text-dim); font-style:italic; }
+  .ai-row{ display:flex; gap:8px; }
+  .ai-row .menu-input{ flex:1; }
+  .ai-row .menu-btn{ width:auto; padding:0 16px; height:48px; }
 </style>
 </head>
 <body>
@@ -418,10 +456,20 @@
 <div class="screen" id="screen-home">
   <button id="name-btn" type="button">🧑 Ad Gir</button>
   <div id="auth-area"></div>
-  <div class="menu-panel">
-    <h1>DÜT ARENA</h1>
-    <button class="menu-btn primary" id="btn-go-join" type="button">Gruba Katıl</button>
-    <button class="menu-btn" id="btn-go-create" type="button">Grup Oluştur</button>
+  <div class="home-stack">
+    <div class="menu-panel">
+      <h1>DÜT ARENA</h1>
+      <button class="menu-btn primary" id="btn-go-join" type="button">Gruba Katıl</button>
+      <button class="menu-btn" id="btn-go-create" type="button">Grup Oluştur</button>
+    </div>
+    <div class="menu-panel" id="ai-chat-panel" hidden>
+      <h2>🤖 MASKOT İLE SOHBET</h2>
+      <div class="ai-messages" id="ai-messages"></div>
+      <div class="ai-row">
+        <input class="menu-input" id="ai-input" type="text" placeholder="Maskota bir şey sor…" maxlength="300">
+        <button class="menu-btn primary" id="ai-send" type="button">Gönder</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -549,7 +597,49 @@
       if (info.color) myColor = info.color;
       updateNameBtn();
     }
+    if (info.aiEnabled) {
+      document.getElementById('ai-chat-panel').hidden = false;
+    }
   }).catch(() => { /* auth unavailable, stay anonymous */ });
+
+  const aiMessagesEl = document.getElementById('ai-messages');
+  const aiInput = document.getElementById('ai-input');
+  const aiSendBtn = document.getElementById('ai-send');
+
+  function addAiMessage(text, cls){
+    const el = document.createElement('div');
+    el.className = 'ai-msg ' + cls;
+    el.textContent = text;
+    aiMessagesEl.appendChild(el);
+    aiMessagesEl.scrollTop = aiMessagesEl.scrollHeight;
+    return el;
+  }
+
+  async function sendAiMessage(){
+    const text = aiInput.value.trim();
+    if (!text) return;
+    addAiMessage(text, 'user');
+    aiInput.value = '';
+    aiSendBtn.disabled = true;
+    const pending = addAiMessage('Maskot düşünüyor…', 'bot pending');
+    try {
+      const r = await fetch('/api/ai-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text }),
+      });
+      const data = await r.json();
+      pending.textContent = data.reply || 'Hmm, cevap veremedim.';
+      pending.classList.remove('pending');
+    } catch (e) {
+      pending.textContent = 'Maskota ulaşılamadı, biraz sonra tekrar dene.';
+      pending.classList.remove('pending');
+    }
+    aiSendBtn.disabled = false;
+  }
+
+  aiSendBtn.addEventListener('click', sendAiMessage);
+  aiInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendAiMessage(); });
 
   let inRoom = false;
   let currentRoomName = null;
