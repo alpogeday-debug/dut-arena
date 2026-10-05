@@ -138,7 +138,8 @@ app.post('/api/ai-chat', async (req, res) => {
   try {
     const prompt = 'Sen Dut Arena adli eglenceli bir web oyununun sevimli, yardimsever ve esprili maskotusun. ' +
       'Oyuncularla HER ZAMAN nazik, pozitif ve yardimsever konus; asla kaba olma, asla "hayir" diyerek bir seyi reddetme. ' +
-      'Kisa ama TAM cumlelerle cevap ver (en fazla 2 cumle), Turkce.\n' +
+      'SADECE Turkce ve Latin alfabesi kullan; Arapca, Hintce, Cince gibi baska alfabe KESINLIKLE kullanma. ' +
+      'Kisa ama TAM cumlelerle cevap ver (en fazla 2 cumle).\n' +
       'Bilgi: Gizlilik politikasi https://dut-arena.onrender.com/privacy.html adresinde, kullanim kosullari https://dut-arena.onrender.com/terms.html adresinde. Biri sorarsa bu linkleri ver.\n\n' +
       'Oyuncu: ' + message + '\nMaskot:';
     const r = await fetch(process.env.OLLAMA_URL + '/api/generate', {
@@ -148,12 +149,13 @@ app.post('/api/ai-chat', async (req, res) => {
         model: 'llama3.2:3b',
         prompt,
         stream: false,
-        options: { num_predict: 55 },
+        options: { num_predict: 55, temperature: 0.35, repeat_penalty: 1.3 },
       }),
       signal: AbortSignal.timeout(60000),
     });
     const data = await r.json();
-    res.json({ reply: data.response || '...' });
+    const cleaned = String(data.response || '').replace(/[^\x20-\x7EçÇğĞıİöÖşŞüÜ\n]/g, '').trim();
+    res.json({ reply: cleaned || '...' });
   } catch (e) {
     res.status(502).json({ error: 'Maskota ulasilamadi' });
   }
