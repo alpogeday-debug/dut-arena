@@ -627,13 +627,23 @@
       const secs = Math.floor((performance.now() - startedAt) / 1000);
       pending.textContent = 'Maskot düşünüyor… (' + secs + ' sn)';
     }, 1000);
-    try {
+    async function tryOnce(){
       const r = await fetch('/api/ai-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text }),
       });
-      const data = await r.json();
+      if (!r.ok) throw new Error('bad status');
+      return r.json();
+    }
+    try {
+      let data;
+      try {
+        data = await tryOnce();
+      } catch (e) {
+        pending.textContent = 'Tekrar deneniyor…';
+        data = await tryOnce();
+      }
       clearInterval(ticker);
       pending.textContent = data.reply || 'Hmm, cevap veremedim.';
       pending.classList.remove('pending');
