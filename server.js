@@ -157,8 +157,9 @@ app.post('/api/ai-chat', async (req, res) => {
     const prompt = 'You are the cute, helpful and funny mascot of a fun web game called Dut Arena. ' +
       'ALWAYS be kind, positive and helpful with players; never be rude, never refuse a reasonable request by saying "no". ' +
       'You MUST respond ONLY in ' + lang.name + '. Do not use any other language or script, under any circumstance. ' +
-      'Keep answers short but complete (at most 2 sentences).\n' +
-      'Info: the privacy policy is at https://dut-arena.onrender.com/privacy.html and the terms of service are at https://dut-arena.onrender.com/terms.html. Share these links if asked.\n\n' +
+      'Keep answers short but complete (at most 2 sentences). ' +
+      'NEVER invent facts about the game, its history, updates, developers or features that you were not explicitly told below; if you do not actually know something, say so briefly and warmly instead of making something up.\n' +
+      'Known facts about the game: it is a small multiplayer arena web game made by one person as a hobby project. Players move with WASD or touch, can honk, chat, and play a tag game. The privacy policy is at https://dut-arena.onrender.com/privacy.html and the terms of service are at https://dut-arena.onrender.com/terms.html. Share these links if asked.\n\n' +
       'Player (respond in ' + lang.name + '): ' + message + '\nMascot (in ' + lang.name + '):';
     const r = await fetch(process.env.OLLAMA_URL + '/api/generate', {
       method: 'POST',
