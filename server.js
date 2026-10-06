@@ -159,7 +159,7 @@ app.post('/api/ai-chat', async (req, res) => {
       'Never invent facts not listed below; if unsure, say so briefly.\n' +
       'Facts: WASD/drag to move. HONK button plays a honk sound + pulse. Chat shows speech bubbles. ' +
       'Home screen: create/join password-protected groups; owner (if logged in via Google/GitHub) can delete their group; pick name+color; 13-language selector; Copy Link button. ' +
-      'Tag mode: with 2+ players one is randomly "it" (red glow); touching others passes "it" to them. Arena has wall obstacles. Join/leave toasts appear. ' +
+      'When creating a group you pick a Game Mode: Normal Chat (just move and chat, no tag), Tag/"Ebelemece" (one random player is "it" with a red glow, touching others passes "it" to them), or Hide and Seek/"Saklambac" (more walls to hide behind; the seeker has very limited vision, only seeing a small area around themselves; touching a hider makes them the new seeker). Arena has wall obstacles. Join/leave toasts appear. ' +
       'Privacy: https://dut-arena.onrender.com/privacy.html Terms: https://dut-arena.onrender.com/terms.html\n\n' +
       'Player (in ' + lang.name + '): ' + message + '\nMascot (in ' + lang.name + '):';
     const r = await fetch(process.env.OLLAMA_URL + '/api/generate', {
@@ -195,9 +195,10 @@ server.on('upgrade', (req, socket, head) => {
   });
 });
 
-// rooms: Map(name -> { password: string|null, ownerId: string|null, players: Map(ws -> {id,x,y,color,name}) })
+// rooms: Map(name -> { password: string|null, ownerId: string|null, mode: 'chat'|'tag'|'hideseek', players: Map(ws -> {id,x,y,color,name}) })
 const rooms = new Map();
 const takenNames = new Map(); // lowercase name -> ws
+const GAME_MODES = ['chat', 'tag', 'hideseek'];
 let nextId = 1;
 
 async function loadRoomsFromRedis() {
@@ -208,7 +209,8 @@ async function loadRoomsFromRedis() {
       const data = await redis.get(key);
       if (!data) continue;
       const name = key.slice('room:'.length);
-      rooms.set(name, { password: data.password || null, ownerId: data.ownerId || null, itId: null, lastTagAt: 0, players: new Map() });
+      const mode = GAME_MODES.includes(data.mode) ? data.mode : 'chat';
+      rooms.set(name, { password: data.password || null, ownerId: data.ownerId || null, mode, itId: null, lastTagAt: 0, players: new Map() });
     }
     console.log('Redis\'ten ' + rooms.size + ' oda yuklendi.');
   } catch (e) {
@@ -244,7 +246,7 @@ function broadcastToRoom(roomName, data, exclude) {
 
 function roomStateMessage(roomName) {
   const room = rooms.get(roomName);
-  return { type: 'state', players: room ? Array.from(room.players.values()) : [], itId: room ? room.itId : null };
+  return { type: 'state', players: room ? Array.from(room.players.values()) : [], itId: room ? room.itId : null, mode: room ? room.mode : 'chat' };
 }
 
 const TAG_RADIUS = 0.05;
@@ -317,6 +319,7 @@ wss.on('connection', (ws, req) => {
     if (msg.type === 'create-room') {
       const name = String(msg.name || '').trim().slice(0, 30);
       const password = msg.password ? String(msg.password).slice(0, 60) : null;
+      const mode = GAME_MODES.includes(msg.mode) ? msg.mode : 'chat';
       if (!name) {
         ws.send(JSON.stringify({ type: 'create-error', reason: 'empty' }));
         return;
@@ -325,12 +328,12 @@ wss.on('connection', (ws, req) => {
         ws.send(JSON.stringify({ type: 'create-error', reason: 'taken' }));
         return;
       }
-      rooms.set(name, { password, ownerId: ws.userId, itId: null, lastTagAt: 0, players: new Map() });
+      rooms.set(name, { password, ownerId: ws.userId, mode, itId: null, lastTagAt: 0, players: new Map() });
       ws.roomName = name;
       if (redis) {
-        await redis.set('room:' + name, { password, ownerId: ws.userId, createdAt: Date.now() });
+        await redis.set('room:' + name, { password, ownerId: ws.userId, mode, createdAt: Date.now() });
       }
-      ws.send(JSON.stringify({ type: 'joined-room', name, ownerId: ws.userId }));
+      ws.send(JSON.stringify({ type: 'joined-room', name, ownerId: ws.userId, mode }));
       broadcastRoomList();
       return;
     }
@@ -347,7 +350,7 @@ wss.on('connection', (ws, req) => {
         return;
       }
       ws.roomName = name;
-      ws.send(JSON.stringify({ type: 'joined-room', name, ownerId: room.ownerId }));
+      ws.send(JSON.stringify({ type: 'joined-room', name, ownerId: room.ownerId, mode: room.mode }));
       broadcastToRoom(name, roomStateMessage(name));
       broadcastRoomList();
       return;
@@ -391,20 +394,22 @@ wss.on('connection', (ws, req) => {
         broadcastToRoom(ws.roomName, { type: 'notify', text: (msg.name || 'Biri') + ' katıldı' });
       }
 
-      if (room.itId === null && room.players.size >= 2) {
-        const ids = Array.from(room.players.values()).map((p) => p.id);
-        room.itId = ids[Math.floor(Math.random() * ids.length)];
-      }
+      if (room.mode !== 'chat') {
+        if (room.itId === null && room.players.size >= 2) {
+          const ids = Array.from(room.players.values()).map((p) => p.id);
+          room.itId = ids[Math.floor(Math.random() * ids.length)];
+        }
 
-      if (room.itId === id) {
-        const now = Date.now();
-        if (now - room.lastTagAt > TAG_COOLDOWN_MS) {
-          for (const p of room.players.values()) {
-            if (p.id === id) continue;
-            if (Math.hypot(p.x - msg.x, p.y - msg.y) < TAG_RADIUS) {
-              room.itId = p.id;
-              room.lastTagAt = now;
-              break;
+        if (room.itId === id) {
+          const now = Date.now();
+          if (now - room.lastTagAt > TAG_COOLDOWN_MS) {
+            for (const p of room.players.values()) {
+              if (p.id === id) continue;
+              if (Math.hypot(p.x - msg.x, p.y - msg.y) < TAG_RADIUS) {
+                room.itId = p.id;
+                room.lastTagAt = now;
+                break;
+              }
             }
           }
         }
