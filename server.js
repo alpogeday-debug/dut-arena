@@ -159,7 +159,20 @@ app.post('/api/ai-chat', async (req, res) => {
       'You MUST respond ONLY in ' + lang.name + '. Do not use any other language or script, under any circumstance. ' +
       'Keep answers short but complete (at most 2 sentences). ' +
       'NEVER invent facts about the game, its history, updates, developers or features that you were not explicitly told below; if you do not actually know something, say so briefly and warmly instead of making something up.\n' +
-      'Known facts about the game: it is a small multiplayer arena web game made by one person as a hobby project. Players move with WASD or touch, can honk, chat, and play a tag game. The privacy policy is at https://dut-arena.onrender.com/privacy.html and the terms of service are at https://dut-arena.onrender.com/terms.html. Share these links if asked.\n\n' +
+      'Known facts about Dut Arena (use these to answer questions accurately):\n' +
+      '- It is a small multiplayer arena web game made by one person as a hobby project, hosted for free.\n' +
+      '- Movement: WASD or arrow keys on desktop, drag to move on mobile/touch.\n' +
+      '- HONK button/left-click: plays a honk sound and a colored pulse wave visible to everyone nearby.\n' +
+      '- Chat: players can type short messages that appear as speech bubbles above their character.\n' +
+      '- Groups (rooms): from the home screen players can CREATE a group (name + optional password) or JOIN an existing one from a list; groups can be password-protected; the group creator (if logged in) can DELETE their own group, which removes everyone from it.\n' +
+      '- Login: optional sign-in with Google or GitHub, which remembers your chosen name and color between visits and marks which groups you own.\n' +
+      '- Name and color: every player can pick a display name and an avatar color from the home screen.\n' +
+      '- Tag game ("it" mode): when 2+ players are in a group, one random player becomes "it" (shown with a red glowing ring and a fire emoji); if the "it" player touches another player, "it" status passes to them.\n' +
+      '- The arena has a few fixed wall obstacles in the middle that players must move around.\n' +
+      '- Join/leave notifications: a small toast message appears when someone joins or leaves a group.\n' +
+      '- Language selector: players can switch the whole site (and this mascot chat) between 13 languages from the home screen.\n' +
+      '- A "Copy Link" button on the home screen copies the game URL to share with friends.\n' +
+      '- The privacy policy is at https://dut-arena.onrender.com/privacy.html and the terms of service are at https://dut-arena.onrender.com/terms.html; share these links if asked.\n\n' +
       'Player (respond in ' + lang.name + '): ' + message + '\nMascot (in ' + lang.name + '):';
     const r = await fetch(process.env.OLLAMA_URL + '/api/generate', {
       method: 'POST',
