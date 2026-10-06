@@ -108,7 +108,7 @@
 <body>
 
 <div class="panel">
-  <a class="back-link" href="/">← Ana ekrana dön</a>
+  <a class="back-link" href="/" id="back-link">← Ana ekrana dön</a>
   <h1>🤖 MASKOT</h1>
   <div class="messages" id="messages"></div>
   <div class="row">
@@ -125,6 +125,31 @@
   const input = document.getElementById('input');
   const sendBtn = document.getElementById('send');
   const note = document.getElementById('note');
+  const backLink = document.getElementById('back-link');
+
+  const M = {
+    tr: { back:'← Ana ekrana dön', ph:'Maskota bir şey sor…', send:'Gönder', note:'Maskot şu an bağlı değil, daha sonra tekrar dene.', thinking:'Maskot düşünüyor…', retry:'Tekrar deneniyor…', noReply:'Hmm, cevap veremedim.', unreachable:'Maskota ulaşılamadı, biraz sonra tekrar dene.' },
+    en: { back:'← Back to home', ph:'Ask the mascot something…', send:'Send', note:'Mascot is offline right now, try again later.', thinking:'Mascot is thinking…', retry:'Retrying…', noReply:'Hmm, could not reply.', unreachable:'Could not reach the mascot, try again soon.' },
+    de: { back:'← Zur Startseite', ph:'Frag das Maskottchen etwas…', send:'Senden', note:'Maskottchen ist offline, versuche es später.', thinking:'Maskottchen denkt nach…', retry:'Erneuter Versuch…', noReply:'Hmm, konnte nicht antworten.', unreachable:'Maskottchen nicht erreichbar, versuche es bald erneut.' },
+    fr: { back:'← Retour à l\'accueil', ph:'Demande quelque chose à la mascotte…', send:'Envoyer', note:'La mascotte est hors ligne, réessaie plus tard.', thinking:'La mascotte réfléchit…', retry:'Nouvelle tentative…', noReply:'Hmm, pas pu répondre.', unreachable:'Impossible de joindre la mascotte, réessaie bientôt.' },
+    es: { back:'← Volver al inicio', ph:'Pregúntale algo a la mascota…', send:'Enviar', note:'La mascota está desconectada, inténtalo más tarde.', thinking:'La mascota está pensando…', retry:'Reintentando…', noReply:'Hmm, no pude responder.', unreachable:'No se pudo contactar a la mascota, inténtalo pronto.' },
+    it: { back:'← Torna alla home', ph:'Chiedi qualcosa alla mascotte…', send:'Invia', note:'La mascotte è offline, riprova più tardi.', thinking:'La mascotte sta pensando…', retry:'Nuovo tentativo…', noReply:'Hmm, non ho potuto rispondere.', unreachable:'Impossibile raggiungere la mascotte, riprova presto.' },
+    pt: { back:'← Voltar ao início', ph:'Pergunte algo ao mascote…', send:'Enviar', note:'O mascote está offline, tente mais tarde.', thinking:'O mascote está pensando…', retry:'Tentando novamente…', noReply:'Hmm, não consegui responder.', unreachable:'Não foi possível contatar o mascote, tente em breve.' },
+    ru: { back:'← На главную', ph:'Спроси что-нибудь у маскота…', send:'Отправить', note:'Маскот сейчас недоступен, попробуй позже.', thinking:'Маскот думает…', retry:'Повтор попытки…', noReply:'Хм, не смог ответить.', unreachable:'Не удалось связаться с маскотом, попробуй скоро снова.' },
+    ar: { back:'← العودة للرئيسية', ph:'اسأل التميمة شيئًا…', send:'إرسال', note:'التميمة غير متصلة الآن، حاول لاحقًا.', thinking:'التميمة تفكر…', retry:'إعادة المحاولة…', noReply:'لم أستطع الرد.', unreachable:'تعذر الوصول إلى التميمة، حاول قريبًا مجددًا.' },
+    zh: { back:'← 返回主页', ph:'问吉祥物点什么…', send:'发送', note:'吉祥物当前离线，请稍后再试。', thinking:'吉祥物正在思考…', retry:'正在重试…', noReply:'嗯，无法回复。', unreachable:'无法连接到吉祥物，请稍后再试。' },
+    ja: { back:'← ホームに戻る', ph:'マスコットに何か聞いてみよう…', send:'送信', note:'マスコットは現在オフラインです、後でもう一度お試しください。', thinking:'マスコットが考え中…', retry:'再試行中…', noReply:'うーん、返信できませんでした。', unreachable:'マスコットに接続できません、もうすぐ再試行してください。' },
+    ko: { back:'← 홈으로 돌아가기', ph:'마스코트에게 무언가 물어보세요…', send:'보내기', note:'마스코트가 현재 오프라인입니다, 나중에 다시 시도하세요.', thinking:'마스코트가 생각 중…', retry:'재시도 중…', noReply:'음, 답변할 수 없었어요.', unreachable:'마스코트에 연결할 수 없습니다, 곧 다시 시도하세요.' },
+    hi: { back:'← होम पर वापस जाएं', ph:'माहक से कुछ पूछें…', send:'भेजें', note:'माहक अभी ऑफ़लाइन है, बाद में फिर कोशिश करें।', thinking:'माहक सोच रहा है…', retry:'पुनः प्रयास हो रहा है…', noReply:'हम्म, जवाब नहीं दे पाया।', unreachable:'माहक तक नहीं पहुंच सका, जल्द ही फिर कोशिश करें।' },
+  };
+  const currentLang = localStorage.getItem('dutArenaLang') || 'tr';
+  function t(){ return M[currentLang] || M.tr; }
+
+  document.documentElement.lang = currentLang;
+  backLink.textContent = t().back;
+  input.placeholder = t().ph;
+  sendBtn.textContent = t().send;
+  note.textContent = t().note;
 
   function addMessage(text, cls){
     const el = document.createElement('div');
@@ -147,7 +172,7 @@
     const r = await fetch('/api/ai-chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message, lang: currentLang }),
     });
     if (!r.ok) throw new Error('bad status');
     return r.json();
@@ -159,26 +184,26 @@
     addMessage(text, 'user');
     input.value = '';
     sendBtn.disabled = true;
-    const pending = addMessage('Maskot düşünüyor… (0 sn)', 'bot pending');
+    const pending = addMessage(t().thinking + ' (0 sn)', 'bot pending');
     const startedAt = performance.now();
     const ticker = setInterval(() => {
       const secs = Math.floor((performance.now() - startedAt) / 1000);
-      pending.textContent = 'Maskot düşünüyor… (' + secs + ' sn)';
+      pending.textContent = t().thinking + ' (' + secs + ' sn)';
     }, 1000);
     try {
       let data;
       try {
         data = await tryOnce(text);
       } catch (e) {
-        pending.textContent = 'Tekrar deneniyor…';
+        pending.textContent = t().retry;
         data = await tryOnce(text);
       }
       clearInterval(ticker);
-      pending.textContent = data.reply || 'Hmm, cevap veremedim.';
+      pending.textContent = data.reply || t().noReply;
       pending.classList.remove('pending');
     } catch (e) {
       clearInterval(ticker);
-      pending.textContent = 'Maskota ulaşılamadı, biraz sonra tekrar dene.';
+      pending.textContent = t().unreachable;
       pending.classList.remove('pending');
     }
     sendBtn.disabled = false;

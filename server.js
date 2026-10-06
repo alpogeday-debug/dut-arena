@@ -125,6 +125,22 @@ app.get('/api/me', (req, res) => {
   }
 });
 
+const LANG_CONFIG = {
+  tr: { name: 'Turkce', script: '' },
+  en: { name: 'English', script: '' },
+  de: { name: 'Almanca (German)', script: '' },
+  fr: { name: 'Fransizca (French)', script: '' },
+  es: { name: 'Ispanyolca (Spanish)', script: '' },
+  it: { name: 'Italyanca (Italian)', script: '' },
+  pt: { name: 'Portekizce (Portuguese)', script: '' },
+  ru: { name: 'Rusca (Russian)', script: '\\u0400-\\u04FF' },
+  ar: { name: 'Arapca (Arabic)', script: '\\u0600-\\u06FF' },
+  zh: { name: 'Cince (Chinese)', script: '\\u4E00-\\u9FFF\\u3000-\\u303F' },
+  ja: { name: 'Japonca (Japanese)', script: '\\u3040-\\u30FF\\u4E00-\\u9FFF' },
+  ko: { name: 'Korece (Korean)', script: '\\uAC00-\\uD7A3' },
+  hi: { name: 'Hintce (Hindi)', script: '\\u0900-\\u097F' },
+};
+
 app.post('/api/ai-chat', async (req, res) => {
   if (!process.env.OLLAMA_URL) {
     res.status(503).json({ error: 'AI yapilandirilmamis' });
@@ -135,10 +151,12 @@ app.post('/api/ai-chat', async (req, res) => {
     res.status(400).json({ error: 'Mesaj bos olamaz' });
     return;
   }
+  const langCode = LANG_CONFIG[(req.body && req.body.lang) || 'tr'] ? (req.body.lang || 'tr') : 'tr';
+  const lang = LANG_CONFIG[langCode];
   try {
     const prompt = 'Sen Dut Arena adli eglenceli bir web oyununun sevimli, yardimsever ve esprili maskotusun. ' +
       'Oyuncularla HER ZAMAN nazik, pozitif ve yardimsever konus; asla kaba olma, asla "hayir" diyerek bir seyi reddetme. ' +
-      'SADECE Turkce ve Latin alfabesi kullan; Arapca, Hintce, Cince gibi baska alfabe KESINLIKLE kullanma. ' +
+      'SADECE ' + lang.name + ' dilinde cevap ver, baska hicbir dil veya alfabe KESINLIKLE kullanma. ' +
       'Kisa ama TAM cumlelerle cevap ver (en fazla 2 cumle).\n' +
       'Bilgi: Gizlilik politikasi https://dut-arena.onrender.com/privacy.html adresinde, kullanim kosullari https://dut-arena.onrender.com/terms.html adresinde. Biri sorarsa bu linkleri ver.\n\n' +
       'Oyuncu: ' + message + '\nMaskot:';
@@ -146,15 +164,17 @@ app.post('/api/ai-chat', async (req, res) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'llama3.2:3b',
+        model: 'qwen2.5:3b',
         prompt,
         stream: false,
-        options: { num_predict: 55, temperature: 0.35, repeat_penalty: 1.3 },
+        options: { num_predict: 70, temperature: 0.35, repeat_penalty: 1.3 },
       }),
       signal: AbortSignal.timeout(60000),
     });
     const data = await r.json();
-    const cleaned = String(data.response || '').replace(/[^\x20-\x7EçÇğĞıİöÖşŞüÜ\n]/g, '').trim();
+    const allowedExtra = lang.script;
+    const filterRe = new RegExp('[^\\x20-\\x7EçÇğĞıİöÖşŞüÜ\\n' + allowedExtra + ']', 'gu');
+    const cleaned = String(data.response || '').replace(filterRe, '').trim();
     res.json({ reply: cleaned || '...' });
   } catch (e) {
     res.status(502).json({ error: 'Maskota ulasilamadi' });
