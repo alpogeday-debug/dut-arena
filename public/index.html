@@ -427,6 +427,22 @@
     cursor:pointer;
   }
   #lang-select:hover{ border-color:var(--accent); }
+  #copy-link-btn{
+    position:fixed;
+    bottom:calc(16px + env(safe-area-inset-bottom,0px));
+    right:calc(16px + env(safe-area-inset-right,0px));
+    z-index:11;
+    background:var(--panel);
+    color:var(--text);
+    border:2px solid var(--panel-border);
+    border-radius:999px;
+    padding:10px 16px;
+    font-family:'Inter',system-ui,sans-serif;
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  #copy-link-btn:hover{ border-color:var(--accent); }
 </style>
 </head>
 <body>
@@ -477,9 +493,9 @@
       <button class="menu-btn primary" id="btn-go-join" type="button" data-i18n="btn_join">Gruba Katıl</button>
       <button class="menu-btn" id="btn-go-create" type="button" data-i18n="btn_create">Grup Oluştur</button>
       <a class="menu-btn ghost" id="ai-link-btn" href="/maskot.html" hidden data-i18n="ai_link">🤖 Maskotla Sohbet Et</a>
-      <button class="menu-btn ghost" id="copy-link-btn" type="button" data-i18n="copy_link">🔗 Linki Kopyala</button>
     </div>
   </div>
+  <button id="copy-link-btn" type="button" data-i18n="copy_link">🔗 Linki Kopyala</button>
 </div>
 
 <div class="screen" id="screen-name" hidden>
