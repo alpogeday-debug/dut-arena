@@ -168,18 +168,38 @@ app.post('/api/ai-chat', async (req, res) => {
       body: JSON.stringify({
         model: 'qwen2.5:3b',
         prompt,
-        stream: false,
+        stream: true,
         options: { num_predict: 60, temperature: 0.35, repeat_penalty: 1.3 },
       }),
       signal: AbortSignal.timeout(90000),
     });
-    const data = await r.json();
     const allowedExtra = lang.script;
     const filterRe = new RegExp('[^\\x20-\\x7EçÇğĞıİöÖşŞüÜ\\n' + allowedExtra + ']', 'gu');
-    const cleaned = String(data.response || '').replace(filterRe, '').trim();
-    res.json({ reply: cleaned || '...' });
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
+    const reader = r.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    let wrote = false;
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        let chunk;
+        try { chunk = JSON.parse(line); } catch (e) { continue; }
+        const piece = String(chunk.response || '').replace(filterRe, '');
+        if (piece) { res.write(piece); wrote = true; }
+      }
+    }
+    if (!wrote) res.write('...');
+    res.end();
   } catch (e) {
-    res.status(502).json({ error: 'Maskota ulasilamadi' });
+    if (!res.headersSent) res.status(502).json({ error: 'Maskota ulasilamadi' });
+    else res.end();
   }
 });
 

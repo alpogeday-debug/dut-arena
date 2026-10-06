@@ -168,14 +168,33 @@
     }
   }).catch(() => {});
 
-  async function tryOnce(message){
+  async function streamOnce(message, pending){
     const r = await fetch('/api/ai-chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message, lang: currentLang }),
     });
-    if (!r.ok) throw new Error('bad status');
-    return r.json();
+    if (!r.ok || !r.body) throw new Error('bad status');
+    const reader = r.body.getReader();
+    const decoder = new TextDecoder();
+    let full = '';
+    let started = false;
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      const piece = decoder.decode(value, { stream: true });
+      if (piece) {
+        if (!started) {
+          started = true;
+          pending.classList.remove('pending');
+          pending.textContent = '';
+        }
+        full += piece;
+        pending.textContent = full;
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+      }
+    }
+    return full.trim();
   }
 
   async function send(){
@@ -184,25 +203,21 @@
     addMessage(text, 'user');
     input.value = '';
     sendBtn.disabled = true;
-    const pending = addMessage(t().thinking + ' (0 sn)', 'bot pending');
-    const startedAt = performance.now();
-    const ticker = setInterval(() => {
-      const secs = Math.floor((performance.now() - startedAt) / 1000);
-      pending.textContent = t().thinking + ' (' + secs + ' sn)';
-    }, 1000);
+    const pending = addMessage(t().thinking, 'bot pending');
     try {
-      let data;
+      let full;
       try {
-        data = await tryOnce(text);
+        full = await streamOnce(text, pending);
       } catch (e) {
         pending.textContent = t().retry;
-        data = await tryOnce(text);
+        pending.classList.add('pending');
+        full = await streamOnce(text, pending);
       }
-      clearInterval(ticker);
-      pending.textContent = data.reply || t().noReply;
-      pending.classList.remove('pending');
+      if (!full) {
+        pending.textContent = t().noReply;
+        pending.classList.remove('pending');
+      }
     } catch (e) {
-      clearInterval(ticker);
       pending.textContent = t().unreachable;
       pending.classList.remove('pending');
     }
