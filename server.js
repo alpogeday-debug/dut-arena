@@ -565,7 +565,7 @@ wss.on('connection', (ws, req) => {
 
     if (msg.type === 'presence') {
       const isNewJoin = !room.players.has(ws);
-      room.players.set(ws, { id, x: msg.x, y: msg.y, color: msg.color, name: msg.name });
+      room.players.set(ws, { id, x: msg.x, y: msg.y, color: msg.color, name: msg.name, accessory: typeof msg.accessory === 'string' ? msg.accessory.slice(0, 20) : null });
 
       if (isNewJoin) {
         broadcastToRoom(ws.roomName, { type: 'notify', text: (msg.name || 'Biri') + ' katıldı' });
