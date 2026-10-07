@@ -218,14 +218,15 @@ server.on('upgrade', (req, socket, head) => {
 // rooms: Map(name -> { password: string|null, ownerId: string|null, mode: 'chat'|'tag'|'hideseek', players: Map(ws -> {id,x,y,color,name}) })
 const rooms = new Map();
 const takenNames = new Map(); // lowercase name -> ws
-const GAME_MODES = ['chat', 'tag', 'hideseek', 'football'];
+const GAME_MODES = ['chat', 'tag', 'hideseek', 'football', 'battle'];
 let nextId = 1;
 
-function makeRoom(password, ownerId, mode) {
+function makeRoom(password, ownerId, mode, teamSize) {
   return {
     password,
     ownerId,
     mode,
+    teamSize: Math.max(1, Math.min(5, teamSize || 3)),
     itId: null,
     lastTagAt: 0,
     players: new Map(),
@@ -237,7 +238,18 @@ function makeRoom(password, ownerId, mode) {
     lastToucher: null,
     roundPhase: 'waiting',
     roundEndsAt: 0,
+    teamScores: { red: 0, blue: 0 },
+    lastHitAt: new Map(),
   };
+}
+
+function assignBattleTeam(room) {
+  let red = 0, blue = 0;
+  for (const p of room.players.values()) {
+    if (p.team === 'red') red++;
+    else if (p.team === 'blue') blue++;
+  }
+  return red <= blue ? 'red' : 'blue';
 }
 
 async function loadRoomsFromRedis() {
@@ -249,7 +261,7 @@ async function loadRoomsFromRedis() {
       if (!data) continue;
       const name = key.slice('room:'.length);
       const mode = GAME_MODES.includes(data.mode) ? data.mode : 'chat';
-      rooms.set(name, makeRoom(data.password || null, data.ownerId || null, mode));
+      rooms.set(name, makeRoom(data.password || null, data.ownerId || null, mode, data.teamSize));
     }
     console.log('Redis\'ten ' + rooms.size + ' oda yuklendi.');
   } catch (e) {
@@ -294,6 +306,7 @@ function roomStateMessage(roomName) {
     scores: room ? Array.from(room.scores.entries()).map(([id, score]) => ({ id, score })) : [],
     roundPhase: room ? room.roundPhase : 'waiting',
     roundEndsAt: room ? room.roundEndsAt : 0,
+    teamScores: room ? room.teamScores : null,
   };
 }
 
@@ -305,6 +318,11 @@ const POWERUP_TTL_MS = 20000;
 const POWERUP_TYPES_GAME = ['speed', 'teleport', 'shield'];
 const POWERUP_TYPES_CHAT = ['dumpling', 'squishy', 'donut', 'boba'];
 let nextPowerupId = 1;
+
+const HIT_RADIUS = 0.07;
+const HIT_COOLDOWN_MS = 800;
+const RED_SPAWN = { x: 0.3, y: WORLD_H / 2 };
+const BLUE_SPAWN = { x: WORLD_W - 0.3, y: WORLD_H / 2 };
 
 const ROUND_MS = 60000;
 const INTERMISSION_MS = 8000;
@@ -500,6 +518,7 @@ wss.on('connection', (ws, req) => {
       const name = String(msg.name || '').trim().slice(0, 30);
       const password = msg.password ? String(msg.password).slice(0, 60) : null;
       const mode = GAME_MODES.includes(msg.mode) ? msg.mode : 'chat';
+      const teamSize = Math.max(1, Math.min(5, parseInt(msg.teamSize, 10) || 3));
       if (!name) {
         ws.send(JSON.stringify({ type: 'create-error', reason: 'empty' }));
         return;
@@ -508,12 +527,18 @@ wss.on('connection', (ws, req) => {
         ws.send(JSON.stringify({ type: 'create-error', reason: 'taken' }));
         return;
       }
-      rooms.set(name, makeRoom(password, ws.userId, mode));
+      const room = makeRoom(password, ws.userId, mode, teamSize);
+      rooms.set(name, room);
       ws.roomName = name;
-      if (redis) {
-        await redis.set('room:' + name, { password, ownerId: ws.userId, mode, createdAt: Date.now() });
+      let team = null;
+      if (mode === 'battle') {
+        team = assignBattleTeam(room);
+        ws.battleTeam = team;
       }
-      ws.send(JSON.stringify({ type: 'joined-room', name, ownerId: ws.userId, mode }));
+      if (redis) {
+        await redis.set('room:' + name, { password, ownerId: ws.userId, mode, teamSize, createdAt: Date.now() });
+      }
+      ws.send(JSON.stringify({ type: 'joined-room', name, ownerId: ws.userId, mode, team, teamSize: room.teamSize }));
       broadcastRoomList();
       return;
     }
@@ -529,8 +554,17 @@ wss.on('connection', (ws, req) => {
         ws.send(JSON.stringify({ type: 'join-error', reason: 'wrong-password' }));
         return;
       }
+      if (room.mode === 'battle' && room.players.size >= room.teamSize * 2) {
+        ws.send(JSON.stringify({ type: 'join-error', reason: 'full' }));
+        return;
+      }
       ws.roomName = name;
-      ws.send(JSON.stringify({ type: 'joined-room', name, ownerId: room.ownerId, mode: room.mode }));
+      let team = null;
+      if (room.mode === 'battle') {
+        team = assignBattleTeam(room);
+        ws.battleTeam = team;
+      }
+      ws.send(JSON.stringify({ type: 'joined-room', name, ownerId: room.ownerId, mode: room.mode, team, teamSize: room.teamSize }));
       broadcastToRoom(name, roomStateMessage(name));
       broadcastRoomList();
       return;
@@ -568,7 +602,7 @@ wss.on('connection', (ws, req) => {
 
     if (msg.type === 'presence') {
       const isNewJoin = !room.players.has(ws);
-      room.players.set(ws, { id, x: msg.x, y: msg.y, color: msg.color, name: msg.name, accessory: typeof msg.accessory === 'string' ? msg.accessory.slice(0, 20) : null });
+      room.players.set(ws, { id, x: msg.x, y: msg.y, color: msg.color, name: msg.name, accessory: typeof msg.accessory === 'string' ? msg.accessory.slice(0, 20) : null, team: room.mode === 'battle' ? ws.battleTeam : undefined });
 
       if (isNewJoin) {
         broadcastToRoom(ws.roomName, { type: 'notify', key: 'join', name: msg.name || null });
@@ -610,6 +644,26 @@ wss.on('connection', (ws, req) => {
       broadcastToRoom(ws.roomName, roomStateMessage(ws.roomName));
     } else if (msg.type === 'honk') {
       broadcastToRoom(ws.roomName, { type: 'honk', id, x: msg.x, y: msg.y, color: msg.color }, ws);
+      if (room.mode === 'battle' && ws.battleTeam) {
+        const now3 = Date.now();
+        const lastHit = room.lastHitAt.get(id) || 0;
+        if (now3 - lastHit > HIT_COOLDOWN_MS) {
+          for (const p of room.players.values()) {
+            if (p.id === id || p.team === ws.battleTeam) continue;
+            if ((room.shields.get(p.id) || 0) > now3) continue;
+            if (Math.hypot(p.x - msg.x, p.y - msg.y) < HIT_RADIUS) {
+              room.lastHitAt.set(id, now3);
+              room.teamScores[ws.battleTeam] = (room.teamScores[ws.battleTeam] || 0) + 1;
+              const spawn = p.team === 'red' ? RED_SPAWN : BLUE_SPAWN;
+              p.x = spawn.x + (Math.random() - 0.5) * 0.1;
+              p.y = spawn.y + (Math.random() - 0.5) * 0.1;
+              broadcastToRoom(ws.roomName, { type: 'notify', key: 'hit', name: p.name });
+              broadcastToRoom(ws.roomName, roomStateMessage(ws.roomName));
+              break;
+            }
+          }
+        }
+      }
     } else if (msg.type === 'chat') {
       const info = room.players.get(ws) || {};
       const text = String(msg.text || '').slice(0, 140);
