@@ -321,13 +321,16 @@ setInterval(() => {
         room.itId = null;
         room.scores.clear();
         room.roundEndsAt = now + ROUND_MS;
-        broadcastToRoom(roomName, { type: 'notify', text: '🏁 Round başladı! 60 saniye' });
+        broadcastToRoom(roomName, { type: 'notify', key: 'round_start' });
       } else if (now >= room.roundEndsAt) {
         if (room.roundPhase === 'playing') {
           const sorted = Array.from(room.scores.entries()).sort((a, b) => b[1] - a[1]);
           const winner = sorted.length ? Array.from(room.players.values()).find((p) => p.id === sorted[0][0]) : null;
-          const text = winner ? ('🏁 Round bitti! Kazanan: ' + winner.name + ' (' + sorted[0][1] + 's)') : '🏁 Round bitti!';
-          broadcastToRoom(roomName, { type: 'notify', text });
+          if (winner) {
+            broadcastToRoom(roomName, { type: 'notify', key: 'round_end_winner', name: winner.name, score: sorted[0][1] });
+          } else {
+            broadcastToRoom(roomName, { type: 'notify', key: 'round_end_none' });
+          }
           room.roundPhase = 'intermission';
           room.roundEndsAt = now + INTERMISSION_MS;
         } else {
@@ -335,7 +338,7 @@ setInterval(() => {
           room.itId = null;
           room.scores.clear();
           room.roundEndsAt = now + ROUND_MS;
-          broadcastToRoom(roomName, { type: 'notify', text: '🏁 Yeni round başladı!' });
+          broadcastToRoom(roomName, { type: 'notify', key: 'round_new' });
         }
       }
       if (room.roundPhase === 'playing') {
@@ -371,7 +374,7 @@ setInterval(() => {
         items.push(item);
       }
       broadcastToRoom(roomName, { type: 'rain', items, ttlMs: POWERUP_TTL_MS });
-      broadcastToRoom(roomName, { type: 'notify', text: room.mode === 'chat' ? '🎁 Eşya Yağmuru!' : '⚡ Güç Topu Yağmuru!' });
+      broadcastToRoom(roomName, { type: 'notify', key: room.mode === 'chat' ? 'rain_item' : 'rain_power' });
       room.nextRainAt = now + 20000 + Math.random() * 20000;
     }
   }
@@ -388,7 +391,7 @@ function scoreGoal(roomName, room) {
   if (scorer) {
     room.scores.set(scorer, (room.scores.get(scorer) || 0) + 1);
     const info = Array.from(room.players.values()).find((p) => p.id === scorer);
-    broadcastToRoom(roomName, { type: 'notify', text: '⚽ ' + (info ? info.name : 'Biri') + ' gol attı!' });
+    broadcastToRoom(roomName, { type: 'notify', key: 'goal', name: info ? info.name : null });
   }
   room.ball.x = WORLD_W / 2;
   room.ball.y = WORLD_H / 2;
@@ -433,7 +436,7 @@ function leaveRoom(ws) {
     const info = room.players.get(ws);
     room.players.delete(ws);
     if (info && info.name) {
-      broadcastToRoom(roomName, { type: 'notify', text: info.name + ' ayrıldı' });
+      broadcastToRoom(roomName, { type: 'notify', key: 'leave', name: info.name });
     }
     if (info) {
       room.scores.delete(info.id);
@@ -568,7 +571,7 @@ wss.on('connection', (ws, req) => {
       room.players.set(ws, { id, x: msg.x, y: msg.y, color: msg.color, name: msg.name, accessory: typeof msg.accessory === 'string' ? msg.accessory.slice(0, 20) : null });
 
       if (isNewJoin) {
-        broadcastToRoom(ws.roomName, { type: 'notify', text: (msg.name || 'Biri') + ' katıldı' });
+        broadcastToRoom(ws.roomName, { type: 'notify', key: 'join', name: msg.name || null });
       }
 
       if (TAGLIKE_MODES.includes(room.mode) && room.roundPhase === 'playing') {
