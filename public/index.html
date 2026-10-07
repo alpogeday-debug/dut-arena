@@ -1009,8 +1009,13 @@
     otherPlayers = [];
     chatBubbles.clear();
     pulses.length = 0;
-    player.x = 0.5;
-    player.y = 0.5;
+    player.x = 1.2;
+    player.y = 1.2;
+    camX = 0.7;
+    camY = 0.7;
+    livePowerups.clear();
+    speedBoostUntil = 0;
+    myShielded = false;
     scoreHud.hidden = true;
     scoreListEl.innerHTML = '';
   }
@@ -1033,7 +1038,7 @@
   resize();
   window.addEventListener('resize', resize);
 
-  const player = { x: 0.5, y: 0.5 };
+  const player = { x: 1.2, y: 1.2 };
   const keys = {};
   const SPEED = 0.55;
   let touchTarget = null;
@@ -1041,32 +1046,71 @@
   let otherPlayers = [];
   let currentItId = null;
   let currentMode = 'chat';
+  let myShielded = false;
+  let speedBoostUntil = 0;
+
+  const WORLD_W = 2.4;
+  const WORLD_H = 2.4;
+  let camX = 0, camY = 0;
+  function updateCamera(){
+    camX = Math.max(0, Math.min(WORLD_W - 1, player.x - 0.5));
+    camY = Math.max(0, Math.min(WORLD_H - 1, player.y - 0.5));
+  }
+  function toScreenX(wx){ return (wx - camX) * canvas.width; }
+  function toScreenY(wy){ return (wy - camY) * canvas.height; }
 
   const WALLS = [
-    { x: 0.46, y: 0.08, w: 0.08, h: 0.22 },
-    { x: 0.46, y: 0.70, w: 0.08, h: 0.22 },
-    { x: 0.08, y: 0.46, w: 0.22, h: 0.08 },
-    { x: 0.70, y: 0.46, w: 0.22, h: 0.08 },
+    { x: 1.06, y: 0.15, w: 0.08, h: 0.30 },
+    { x: 1.06, y: 1.55, w: 0.08, h: 0.30 },
+    { x: 0.15, y: 1.06, w: 0.30, h: 0.08 },
+    { x: 1.75, y: 1.06, w: 0.30, h: 0.08 },
+    { x: 0.40, y: 0.40, w: 0.18, h: 0.18 },
+    { x: 1.80, y: 0.35, w: 0.18, h: 0.18 },
+    { x: 0.35, y: 1.80, w: 0.18, h: 0.18 },
+    { x: 1.85, y: 1.85, w: 0.18, h: 0.18 },
+    { x: 1.00, y: 0.75, w: 0.40, h: 0.08 },
+    { x: 1.00, y: 1.35, w: 0.40, h: 0.08 },
+    { x: 0.75, y: 1.00, w: 0.08, h: 0.40 },
+    { x: 1.35, y: 1.00, w: 0.08, h: 0.40 },
   ];
   const HIDESEEK_WALLS = [
-    { x: 0.08, y: 0.08, w: 0.18, h: 0.06 },
-    { x: 0.08, y: 0.08, w: 0.06, h: 0.22 },
-    { x: 0.74, y: 0.08, w: 0.18, h: 0.06 },
-    { x: 0.86, y: 0.08, w: 0.06, h: 0.22 },
-    { x: 0.08, y: 0.70, w: 0.06, h: 0.22 },
-    { x: 0.08, y: 0.86, w: 0.18, h: 0.06 },
-    { x: 0.86, y: 0.70, w: 0.06, h: 0.22 },
-    { x: 0.74, y: 0.86, w: 0.18, h: 0.06 },
-    { x: 0.40, y: 0.28, w: 0.20, h: 0.055 },
-    { x: 0.28, y: 0.40, w: 0.055, h: 0.20 },
-    { x: 0.665, y: 0.40, w: 0.055, h: 0.20 },
-    { x: 0.40, y: 0.665, w: 0.20, h: 0.055 },
+    { x: 0.10, y: 0.10, w: 0.35, h: 0.08 },
+    { x: 0.10, y: 0.10, w: 0.08, h: 0.40 },
+    { x: 1.95, y: 0.10, w: 0.35, h: 0.08 },
+    { x: 2.22, y: 0.10, w: 0.08, h: 0.40 },
+    { x: 0.10, y: 1.80, w: 0.08, h: 0.40 },
+    { x: 0.10, y: 2.12, w: 0.35, h: 0.08 },
+    { x: 2.22, y: 1.80, w: 0.08, h: 0.40 },
+    { x: 1.95, y: 2.12, w: 0.35, h: 0.08 },
+    { x: 1.00, y: 0.55, w: 0.40, h: 0.08 },
+    { x: 0.55, y: 1.00, w: 0.08, h: 0.40 },
+    { x: 1.77, y: 1.00, w: 0.08, h: 0.40 },
+    { x: 1.00, y: 1.77, w: 0.40, h: 0.08 },
+    { x: 0.40, y: 0.65, w: 0.18, h: 0.18 },
+    { x: 1.82, y: 0.60, w: 0.18, h: 0.18 },
+    { x: 0.55, y: 1.85, w: 0.18, h: 0.18 },
+    { x: 1.85, y: 1.85, w: 0.18, h: 0.18 },
+    { x: 1.00, y: 1.06, w: 0.18, h: 0.18 },
+    { x: 1.25, y: 1.25, w: 0.12, h: 0.12 },
   ];
   function activeWalls(){
     return currentMode === 'hideseek' ? HIDESEEK_WALLS : WALLS;
   }
   function hitsWall(x, y){
     return activeWalls().some(w => x >= w.x && x <= w.x + w.w && y >= w.y && y <= w.y + w.h);
+  }
+
+  const POWERUP_EMOJI = { speed:'⚡', teleport:'🌀', shield:'🛡️', dumpling:'🥟', squishy:'🧸', donut:'🍩', boba:'🧋' };
+  const COSMETIC_LABELS = { dumpling:'🥟 Mantı buldun!', squishy:'🧸 Peluş buldun!', donut:'🍩 Donut buldun!', boba:'🧋 Boba buldun!' };
+  const POWERUP_RADIUS = 0.08;
+  let livePowerups = new Map();
+  function teleportSelf(){
+    const margin = 0.06;
+    for (let i = 0; i < 20; i++) {
+      const nx = margin + Math.random() * (WORLD_W - margin * 2);
+      const ny = margin + Math.random() * (WORLD_H - margin * 2);
+      if (!hitsWall(nx, ny)) { player.x = nx; player.y = ny; return; }
+    }
   }
 
   window.addEventListener('keydown', (e) => {
@@ -1084,7 +1128,7 @@
   chatInput.addEventListener('focus', () => { for (const k in keys) keys[k] = false; });
 
   function canvasPointToNorm(clientX, clientY){
-    return { x: clientX / window.innerWidth, y: clientY / window.innerHeight };
+    return { x: camX + clientX / window.innerWidth, y: camY + clientY / window.innerHeight };
   }
 
   canvas.addEventListener('touchstart', (e) => {
@@ -1220,6 +1264,8 @@
       } else if (msg.type === 'state') {
         otherPlayers = msg.players.filter(p => p.id !== myId);
         currentItId = msg.itId || null;
+        const mine = msg.players.find(p => p.id === myId);
+        myShielded = mine ? !!mine.shielded : false;
         playerCountEl.textContent = (otherPlayers.length + 1) + ' ' + T().player_suffix;
         updateScoreboard(msg.players, msg.scores || []);
         if (myId !== null && currentItId === myId) {
@@ -1234,6 +1280,22 @@
         }
       } else if (msg.type === 'notify') {
         showNotify(msg.text);
+      } else if (msg.type === 'rain') {
+        const spawnAt = performance.now();
+        for (const it of msg.items) {
+          livePowerups.set(it.id, { id: it.id, type: it.type, x: it.x, y: it.y, spawnAt, ttl: msg.ttlMs || 20000 });
+        }
+      } else if (msg.type === 'powerup-collected') {
+        livePowerups.delete(msg.id);
+        if (msg.playerId === myId) {
+          if (msg.kind === 'speed') {
+            speedBoostUntil = performance.now() + 10000;
+          } else if (msg.kind === 'teleport') {
+            teleportSelf();
+          } else if (COSMETIC_LABELS[msg.kind]) {
+            showNotify(COSMETIC_LABELS[msg.kind]);
+          }
+        }
       }
     };
   }
@@ -1251,6 +1313,12 @@
     addPulse(player.x, player.y, myColor);
     sendJSON({ type: 'honk', x: player.x, y: player.y, color: myColor });
     unlockAchv('ilk_dut', T().achv_honk_title, T().achv_honk_desc);
+    for (const p of livePowerups.values()) {
+      if (Math.hypot(p.x - player.x, p.y - player.y) < POWERUP_RADIUS) {
+        sendJSON({ type: 'collect-powerup', id: p.id });
+        break;
+      }
+    }
   }
 
   honkBtn.addEventListener('click', localHonk);
@@ -1270,6 +1338,8 @@
       return;
     }
 
+    const spd = (now < speedBoostUntil) ? SPEED * 1.8 : SPEED;
+
     let dx = 0, dy = 0;
     if (keys['w'] || keys['arrowup']) dy -= 1;
     if (keys['s'] || keys['arrowdown']) dy += 1;
@@ -1278,8 +1348,8 @@
 
     if (dx !== 0 || dy !== 0) {
       const len = Math.hypot(dx, dy);
-      const nx = player.x + (dx / len) * SPEED * dt;
-      const ny = player.y + (dy / len) * SPEED * dt;
+      const nx = player.x + (dx / len) * spd * dt;
+      const ny = player.y + (dy / len) * spd * dt;
       if (!hitsWall(nx, player.y)) player.x = nx;
       if (!hitsWall(player.x, ny)) player.y = ny;
     } else if (touchTarget) {
@@ -1287,16 +1357,17 @@
       const tdy = touchTarget.y - player.y;
       const dist = Math.hypot(tdx, tdy);
       if (dist > 0.01) {
-        const nx = player.x + (tdx / dist) * SPEED * dt;
-        const ny = player.y + (tdy / dist) * SPEED * dt;
+        const nx = player.x + (tdx / dist) * spd * dt;
+        const ny = player.y + (tdy / dist) * spd * dt;
         if (!hitsWall(nx, player.y)) player.x = nx;
         if (!hitsWall(player.x, ny)) player.y = ny;
       }
     }
 
     const margin = 0.03;
-    player.x = Math.max(margin, Math.min(1 - margin, player.x));
-    player.y = Math.max(margin, Math.min(1 - margin, player.y));
+    player.x = Math.max(margin, Math.min(WORLD_W - margin, player.x));
+    player.y = Math.max(margin, Math.min(WORLD_H - margin, player.y));
+    updateCamera();
 
     if (now - lastPresenceSent > 50) {
       sendJSON({ type: 'presence', x: player.x, y: player.y, color: myColor, name: myName });
@@ -1310,12 +1381,14 @@
   function drawGrid(){
     const w = canvas.width, h = canvas.height;
     const step = 48 * devicePixelRatio;
+    const offX = (camX * canvas.width) % step;
+    const offY = (camY * canvas.height) % step;
     ctx.strokeStyle = '#241f3a';
     ctx.lineWidth = 1;
-    for (let gx = 0; gx < w; gx += step) {
+    for (let gx = -offX; gx < w; gx += step) {
       ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, h); ctx.stroke();
     }
-    for (let gy = 0; gy < h; gy += step) {
+    for (let gy = -offY; gy < h; gy += step) {
       ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(w, gy); ctx.stroke();
     }
   }
@@ -1328,8 +1401,8 @@
     ctx.strokeStyle = '#ffce3d88';
     ctx.lineWidth = 2 * devicePixelRatio;
     for (const w of activeWalls()) {
-      const wx = w.x * canvas.width;
-      const wy = w.y * canvas.height;
+      const wx = toScreenX(w.x);
+      const wy = toScreenY(w.y);
       const ww = w.w * canvas.width;
       const wh = w.h * canvas.height;
       ctx.fillRect(wx, wy, ww, wh);
@@ -1338,11 +1411,23 @@
     ctx.restore();
   }
 
-  function drawPlayer(id, nx, ny, color, label, isMe, now){
-    const x = nx * canvas.width;
-    const y = ny * canvas.height;
+  function drawPlayer(id, nx, ny, color, label, isMe, now, shielded){
+    const x = toScreenX(nx);
+    const y = toScreenY(ny);
     const r = 16 * devicePixelRatio;
     const isIt = id !== null && id === currentItId;
+
+    if (shielded) {
+      ctx.save();
+      ctx.strokeStyle = '#4dd6ff';
+      ctx.lineWidth = 3 * devicePixelRatio;
+      ctx.shadowColor = '#4dd6ff';
+      ctx.shadowBlur = 14 * devicePixelRatio;
+      ctx.beginPath();
+      ctx.arc(x, y, r + 11 * devicePixelRatio, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
 
     if (isIt) {
       ctx.save();
@@ -1415,8 +1500,8 @@
       const age = (now - p.start) / 1000;
       if (age > 0.6) { pulses.splice(i, 1); continue; }
       const t = age / 0.6;
-      const x = p.x * canvas.width;
-      const y = p.y * canvas.height;
+      const x = toScreenX(p.x);
+      const y = toScreenY(p.y);
       const r = (16 + t * 60) * devicePixelRatio;
       ctx.save();
       ctx.globalAlpha = 1 - t;
@@ -1431,8 +1516,8 @@
 
   function drawFog(){
     if (currentMode !== 'hideseek' || myId === null || myId !== currentItId) return;
-    const px = player.x * canvas.width;
-    const py = player.y * canvas.height;
+    const px = toScreenX(player.x);
+    const py = toScreenY(player.y);
     const radius = 0.16 * Math.min(canvas.width, canvas.height);
     ctx.save();
     ctx.fillStyle = '#000000';
@@ -1448,16 +1533,45 @@
     ctx.restore();
   }
 
+  function drawPowerups(now){
+    for (const [id, p] of livePowerups) {
+      const age = now - p.spawnAt;
+      if (age > p.ttl) { livePowerups.delete(id); continue; }
+      const dropT = Math.min(age / 500, 1);
+      const dropOffset = (1 - dropT) * -0.35;
+      const sx = toScreenX(p.x);
+      const sy = toScreenY(p.y + dropOffset);
+      const r = 16 * devicePixelRatio;
+      ctx.save();
+      ctx.shadowColor = '#ffce3d';
+      ctx.shadowBlur = 16 * devicePixelRatio;
+      ctx.fillStyle = '#1c1830';
+      ctx.beginPath();
+      ctx.arc(sx, sy, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#ffce3d';
+      ctx.lineWidth = 2 * devicePixelRatio;
+      ctx.stroke();
+      ctx.font = (18 * devicePixelRatio) + "px sans-serif";
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(POWERUP_EMOJI[p.type] || '❓', sx, sy + 1);
+      ctx.textBaseline = 'alphabetic';
+      ctx.restore();
+    }
+  }
+
   function render(now){
     ctx.fillStyle = '#100e1c';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     drawGrid();
     drawWalls();
+    drawPowerups(now);
 
-    drawPlayer(myId, player.x, player.y, myColor, myName, true, now);
+    drawPlayer(myId, player.x, player.y, myColor, myName, true, now, myShielded);
     for (const p of otherPlayers) {
       if (typeof p.x !== 'number' || typeof p.y !== 'number') continue;
-      drawPlayer(p.id, p.x, p.y, p.color || '#888', p.name || 'Oyuncu', false, now);
+      drawPlayer(p.id, p.x, p.y, p.color || '#888', p.name || 'Oyuncu', false, now, !!p.shielded);
     }
 
     drawPulses(now);

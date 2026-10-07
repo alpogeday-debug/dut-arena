@@ -230,7 +230,7 @@ async function loadRoomsFromRedis() {
       if (!data) continue;
       const name = key.slice('room:'.length);
       const mode = GAME_MODES.includes(data.mode) ? data.mode : 'chat';
-      rooms.set(name, { password: data.password || null, ownerId: data.ownerId || null, mode, itId: null, lastTagAt: 0, players: new Map(), scores: new Map() });
+      rooms.set(name, { password: data.password || null, ownerId: data.ownerId || null, mode, itId: null, lastTagAt: 0, players: new Map(), scores: new Map(), powerups: new Map(), shields: new Map(), nextRainAt: Date.now() + 15000 + Math.random() * 15000 });
     }
     console.log('Redis\'ten ' + rooms.size + ' oda yuklendi.');
   } catch (e) {
@@ -266,9 +266,10 @@ function broadcastToRoom(roomName, data, exclude) {
 
 function roomStateMessage(roomName) {
   const room = rooms.get(roomName);
+  const now = Date.now();
   return {
     type: 'state',
-    players: room ? Array.from(room.players.values()) : [],
+    players: room ? Array.from(room.players.values()).map((p) => ({ ...p, shielded: (room.shields.get(p.id) || 0) > now })) : [],
     itId: room ? room.itId : null,
     mode: room ? room.mode : 'chat',
     scores: room ? Array.from(room.scores.entries()).map(([id, secs]) => ({ id, secs })) : [],
@@ -277,14 +278,50 @@ function roomStateMessage(roomName) {
 
 const TAG_RADIUS = 0.05;
 const TAG_COOLDOWN_MS = 1000;
+const WORLD_W = 2.4;
+const WORLD_H = 2.4;
+const POWERUP_TTL_MS = 20000;
+const POWERUP_TYPES_GAME = ['speed', 'teleport', 'shield'];
+const POWERUP_TYPES_CHAT = ['dumpling', 'squishy', 'donut', 'boba'];
+let nextPowerupId = 1;
 
 setInterval(() => {
-  for (const room of rooms.values()) {
-    if (room.mode === 'chat' || room.players.size < 2) continue;
-    for (const p of room.players.values()) {
-      if (p.id !== room.itId) {
-        room.scores.set(p.id, (room.scores.get(p.id) || 0) + 1);
+  const now = Date.now();
+  for (const [roomName, room] of rooms.entries()) {
+    if (room.players.size >= 2) {
+      for (const p of room.players.values()) {
+        if (room.mode !== 'chat' && p.id !== room.itId) {
+          room.scores.set(p.id, (room.scores.get(p.id) || 0) + 1);
+        }
       }
+    }
+
+    for (const [pid, exp] of room.shields.entries()) {
+      if (exp < now) room.shields.delete(pid);
+    }
+    for (const [pid, p] of room.powerups.entries()) {
+      if (now - p.spawnedAt > POWERUP_TTL_MS) room.powerups.delete(pid);
+    }
+
+    if (room.players.size > 0 && now >= room.nextRainAt) {
+      const margin = 0.08;
+      const count = 4 + Math.floor(Math.random() * 3);
+      const types = room.mode === 'chat' ? POWERUP_TYPES_CHAT : POWERUP_TYPES_GAME;
+      const items = [];
+      for (let i = 0; i < count; i++) {
+        const item = {
+          id: 'p' + (nextPowerupId++),
+          type: types[Math.floor(Math.random() * types.length)],
+          x: margin + Math.random() * (WORLD_W - margin * 2),
+          y: margin + Math.random() * (WORLD_H - margin * 2),
+          spawnedAt: now,
+        };
+        room.powerups.set(item.id, item);
+        items.push(item);
+      }
+      broadcastToRoom(roomName, { type: 'rain', items, ttlMs: POWERUP_TTL_MS });
+      broadcastToRoom(roomName, { type: 'notify', text: room.mode === 'chat' ? '🎁 Eşya Yağmuru!' : '⚡ Güç Topu Yağmuru!' });
+      room.nextRainAt = now + 20000 + Math.random() * 20000;
     }
   }
 }, 1000);
@@ -301,6 +338,7 @@ function leaveRoom(ws) {
     }
     if (info) {
       room.scores.delete(info.id);
+      room.shields.delete(info.id);
     }
     if (info && room.itId === info.id) {
       const remaining = Array.from(room.players.values());
@@ -368,7 +406,7 @@ wss.on('connection', (ws, req) => {
         ws.send(JSON.stringify({ type: 'create-error', reason: 'taken' }));
         return;
       }
-      rooms.set(name, { password, ownerId: ws.userId, mode, itId: null, lastTagAt: 0, players: new Map(), scores: new Map() });
+      rooms.set(name, { password, ownerId: ws.userId, mode, itId: null, lastTagAt: 0, players: new Map(), scores: new Map(), powerups: new Map(), shields: new Map(), nextRainAt: Date.now() + 15000 + Math.random() * 15000 });
       ws.roomName = name;
       if (redis) {
         await redis.set('room:' + name, { password, ownerId: ws.userId, mode, createdAt: Date.now() });
@@ -445,6 +483,7 @@ wss.on('connection', (ws, req) => {
           if (now - room.lastTagAt > TAG_COOLDOWN_MS) {
             for (const p of room.players.values()) {
               if (p.id === id) continue;
+              if ((room.shields.get(p.id) || 0) > now) continue;
               if (Math.hypot(p.x - msg.x, p.y - msg.y) < TAG_RADIUS) {
                 room.itId = p.id;
                 room.lastTagAt = now;
@@ -463,6 +502,15 @@ wss.on('connection', (ws, req) => {
       const text = String(msg.text || '').slice(0, 140);
       if (text) {
         broadcastToRoom(ws.roomName, { type: 'chat', id, name: info.name, color: info.color, text });
+      }
+    } else if (msg.type === 'collect-powerup') {
+      const p = room.powerups.get(String(msg.id));
+      if (p) {
+        room.powerups.delete(p.id);
+        if (p.type === 'shield') {
+          room.shields.set(id, Date.now() + 15000);
+        }
+        broadcastToRoom(ws.roomName, { type: 'powerup-collected', id: p.id, playerId: id, kind: p.type });
       }
     }
   });
