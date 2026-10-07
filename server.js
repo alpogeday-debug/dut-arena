@@ -230,7 +230,7 @@ async function loadRoomsFromRedis() {
       if (!data) continue;
       const name = key.slice('room:'.length);
       const mode = GAME_MODES.includes(data.mode) ? data.mode : 'chat';
-      rooms.set(name, { password: data.password || null, ownerId: data.ownerId || null, mode, itId: null, lastTagAt: 0, players: new Map() });
+      rooms.set(name, { password: data.password || null, ownerId: data.ownerId || null, mode, itId: null, lastTagAt: 0, players: new Map(), scores: new Map() });
     }
     console.log('Redis\'ten ' + rooms.size + ' oda yuklendi.');
   } catch (e) {
@@ -266,11 +266,28 @@ function broadcastToRoom(roomName, data, exclude) {
 
 function roomStateMessage(roomName) {
   const room = rooms.get(roomName);
-  return { type: 'state', players: room ? Array.from(room.players.values()) : [], itId: room ? room.itId : null, mode: room ? room.mode : 'chat' };
+  return {
+    type: 'state',
+    players: room ? Array.from(room.players.values()) : [],
+    itId: room ? room.itId : null,
+    mode: room ? room.mode : 'chat',
+    scores: room ? Array.from(room.scores.entries()).map(([id, secs]) => ({ id, secs })) : [],
+  };
 }
 
 const TAG_RADIUS = 0.05;
 const TAG_COOLDOWN_MS = 1000;
+
+setInterval(() => {
+  for (const room of rooms.values()) {
+    if (room.mode === 'chat' || room.players.size < 2) continue;
+    for (const p of room.players.values()) {
+      if (p.id !== room.itId) {
+        room.scores.set(p.id, (room.scores.get(p.id) || 0) + 1);
+      }
+    }
+  }
+}, 1000);
 
 function leaveRoom(ws) {
   const roomName = ws.roomName;
@@ -281,6 +298,9 @@ function leaveRoom(ws) {
     room.players.delete(ws);
     if (info && info.name) {
       broadcastToRoom(roomName, { type: 'notify', text: info.name + ' ayrıldı' });
+    }
+    if (info) {
+      room.scores.delete(info.id);
     }
     if (info && room.itId === info.id) {
       const remaining = Array.from(room.players.values());
@@ -348,7 +368,7 @@ wss.on('connection', (ws, req) => {
         ws.send(JSON.stringify({ type: 'create-error', reason: 'taken' }));
         return;
       }
-      rooms.set(name, { password, ownerId: ws.userId, mode, itId: null, lastTagAt: 0, players: new Map() });
+      rooms.set(name, { password, ownerId: ws.userId, mode, itId: null, lastTagAt: 0, players: new Map(), scores: new Map() });
       ws.roomName = name;
       if (redis) {
         await redis.set('room:' + name, { password, ownerId: ws.userId, mode, createdAt: Date.now() });
