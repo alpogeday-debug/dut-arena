@@ -86,6 +86,29 @@
     border-radius:6px;
     white-space:nowrap;
   }
+  #music-btn{
+    align-self:flex-start;
+    border-radius:6px;
+    border:1px solid var(--panel-border);
+    background:var(--panel);
+    color:var(--text-dim);
+    font-size:13px;
+    padding:5px 9px;
+    cursor:pointer;
+    -webkit-tap-highlight-color:transparent;
+  }
+  #music-btn:hover{ border-color:var(--accent); }
+  #minimap{
+    position:fixed;
+    right:calc(20px + env(safe-area-inset-right,0px));
+    bottom:calc(24px + 76px + 16px + env(safe-area-inset-bottom,0px));
+    width:90px;
+    height:90px;
+    border-radius:10px;
+    border:2px solid var(--panel-border);
+    background:#14111fcc;
+    z-index:6;
+  }
   #hint-bar{
     bottom:calc(16px + env(safe-area-inset-bottom,0px));
     left:50%;
@@ -584,11 +607,13 @@
 <body>
 
 <canvas id="arena" hidden></canvas>
+<canvas id="minimap" width="90" height="90" hidden></canvas>
 
 <div class="hud" id="title-hud" hidden>
   <h1 id="title-link" role="button" tabindex="0">DÜT ARENA</h1>
   <div id="player-count">1 OYUNCU</div>
   <div id="challenge-badge" hidden>🎯 <span id="challenge-text"></span></div>
+  <button id="music-btn" type="button">🔇</button>
   <button id="delete-room-btn" type="button" hidden data-i18n="delete_btn">🗑️ Grubu Sil</button>
 </div>
 
@@ -728,6 +753,9 @@
 
   const canvas = document.getElementById('arena');
   const ctx = canvas.getContext('2d');
+  const minimapCanvas = document.getElementById('minimap');
+  const minimapCtx = minimapCanvas.getContext('2d');
+  const musicBtn = document.getElementById('music-btn');
   const playerCountEl = document.getElementById('player-count');
   const connNote = document.getElementById('conn-note');
   const honkBtn = document.getElementById('honk-btn');
@@ -853,7 +881,7 @@
     password: document.getElementById('screen-password'),
     name: document.getElementById('screen-name'),
   };
-  const gameEls = [canvas, titleHud, hintBar, honkBtn, chatBox, scoreHud];
+  const gameEls = [canvas, titleHud, hintBar, honkBtn, chatBox, scoreHud, minimapCanvas];
 
   const ADJ = ['Hızlı','Neon','Gölge','Turbo','Meraklı','Cesur','Sessiz','Parlak','Vahşi','Şanslı'];
   const NOUN = ['Tilki','Kedi','Kartal','Robot','Şahin','Kaplan','Ejder','Baykuş','Kurt','Roket'];
@@ -1176,6 +1204,10 @@
     scoreHud.hidden = true;
     scoreListEl.innerHTML = '';
     rotateChallenge();
+    musicOn = false;
+    musicBtn.textContent = '🔇';
+    clearTimeout(musicTimer);
+    confettiParticles.length = 0;
   }
 
   deleteRoomBtn.addEventListener('click', () => {
@@ -1395,6 +1427,98 @@
     } catch (err) { /* audio unavailable, silently skip */ }
   }
 
+  let musicOn = false;
+  let musicTimer = null;
+  let musicStep = 0;
+  const MUSIC_NOTES = [392, 440, 494, 440, 523, 494, 440, 392];
+  function playMusicStep(){
+    if (!musicOn) return;
+    try {
+      const ac = ensureAudio();
+      const osc = ac.createOscillator();
+      const gain = ac.createGain();
+      osc.type = 'triangle';
+      osc.frequency.value = MUSIC_NOTES[musicStep % MUSIC_NOTES.length];
+      gain.gain.setValueAtTime(0.05, ac.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.28);
+      osc.connect(gain).connect(ac.destination);
+      osc.start();
+      osc.stop(ac.currentTime + 0.3);
+    } catch (err) { /* ignore */ }
+    musicStep++;
+    musicTimer = setTimeout(playMusicStep, 300);
+  }
+  musicBtn.addEventListener('click', () => {
+    musicOn = !musicOn;
+    musicBtn.textContent = musicOn ? '🔊' : '🔇';
+    if (musicOn) { ensureAudio(); playMusicStep(); }
+    else { clearTimeout(musicTimer); }
+  });
+
+  const confettiParticles = [];
+  const CONFETTI_COLORS = ['#ff4d94','#ffce3d','#4dd6ff','#7dff6b','#c76bff','#ff8a4d'];
+  function spawnConfetti(){
+    for (let i = 0; i < 60; i++) {
+      confettiParticles.push({
+        x: canvas.width / 2 + (Math.random() - 0.5) * canvas.width * 0.6,
+        y: -20 * devicePixelRatio - Math.random() * 100 * devicePixelRatio,
+        vx: (Math.random() - 0.5) * 2 * devicePixelRatio,
+        vy: (2 + Math.random() * 3) * devicePixelRatio,
+        size: (4 + Math.random() * 4) * devicePixelRatio,
+        color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
+        rot: Math.random() * Math.PI * 2,
+        vrot: (Math.random() - 0.5) * 0.2,
+      });
+    }
+  }
+  function drawConfetti(){
+    for (let i = confettiParticles.length - 1; i >= 0; i--) {
+      const p = confettiParticles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.08 * devicePixelRatio;
+      p.rot += p.vrot;
+      if (p.y > canvas.height + 30 * devicePixelRatio) { confettiParticles.splice(i, 1); continue; }
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+      ctx.restore();
+    }
+  }
+
+  function drawMinimap(){
+    const mw = minimapCanvas.width, mh = minimapCanvas.height;
+    minimapCtx.clearRect(0, 0, mw, mh);
+    minimapCtx.fillStyle = '#14111f';
+    minimapCtx.fillRect(0, 0, mw, mh);
+    const sx = mw / WORLD_W, sy = mh / WORLD_H;
+    minimapCtx.strokeStyle = '#ffffff55';
+    minimapCtx.lineWidth = 1;
+    minimapCtx.strokeRect(camX * sx, camY * sy, 1 * sx, 1 * sy);
+    if (currentMode === 'football') {
+      minimapCtx.fillStyle = '#ffffff';
+      minimapCtx.beginPath();
+      minimapCtx.arc(ball.x * sx, ball.y * sy, 2.5, 0, Math.PI * 2);
+      minimapCtx.fill();
+    }
+    for (const p of otherPlayers) {
+      if (typeof p.x !== 'number') continue;
+      minimapCtx.fillStyle = p.color || '#888';
+      minimapCtx.beginPath();
+      minimapCtx.arc(p.x * sx, p.y * sy, 3, 0, Math.PI * 2);
+      minimapCtx.fill();
+    }
+    minimapCtx.fillStyle = myColor;
+    minimapCtx.strokeStyle = '#fff';
+    minimapCtx.lineWidth = 1;
+    minimapCtx.beginPath();
+    minimapCtx.arc(player.x * sx, player.y * sy, 3.5, 0, Math.PI * 2);
+    minimapCtx.fill();
+    minimapCtx.stroke();
+  }
+
   const pulses = [];
   function addPulse(x, y, color){
     pulses.push({ x, y, color, start: performance.now() });
@@ -1540,6 +1664,7 @@
         if (msg.key) {
           const text = formatNotify(msg.key, msg);
           if (text) showNotify(text);
+          if (msg.key === 'round_end_winner' || msg.key === 'goal') spawnConfetti();
         } else if (msg.text) {
           showNotify(msg.text);
         }
@@ -1894,6 +2019,8 @@
     drawPulses(now);
     drawNight();
     drawFog();
+    drawConfetti();
+    drawMinimap();
   }
 
   requestAnimationFrame(tick);
