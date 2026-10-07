@@ -218,8 +218,27 @@ server.on('upgrade', (req, socket, head) => {
 // rooms: Map(name -> { password: string|null, ownerId: string|null, mode: 'chat'|'tag'|'hideseek', players: Map(ws -> {id,x,y,color,name}) })
 const rooms = new Map();
 const takenNames = new Map(); // lowercase name -> ws
-const GAME_MODES = ['chat', 'tag', 'hideseek'];
+const GAME_MODES = ['chat', 'tag', 'hideseek', 'football'];
 let nextId = 1;
+
+function makeRoom(password, ownerId, mode) {
+  return {
+    password,
+    ownerId,
+    mode,
+    itId: null,
+    lastTagAt: 0,
+    players: new Map(),
+    scores: new Map(),
+    powerups: new Map(),
+    shields: new Map(),
+    nextRainAt: Date.now() + 15000 + Math.random() * 15000,
+    ball: { x: WORLD_W / 2, y: WORLD_H / 2, vx: 0, vy: 0 },
+    lastToucher: null,
+    roundPhase: 'waiting',
+    roundEndsAt: 0,
+  };
+}
 
 async function loadRoomsFromRedis() {
   if (!redis) return;
@@ -230,7 +249,7 @@ async function loadRoomsFromRedis() {
       if (!data) continue;
       const name = key.slice('room:'.length);
       const mode = GAME_MODES.includes(data.mode) ? data.mode : 'chat';
-      rooms.set(name, { password: data.password || null, ownerId: data.ownerId || null, mode, itId: null, lastTagAt: 0, players: new Map(), scores: new Map(), powerups: new Map(), shields: new Map(), nextRainAt: Date.now() + 15000 + Math.random() * 15000 });
+      rooms.set(name, makeRoom(data.password || null, data.ownerId || null, mode));
     }
     console.log('Redis\'ten ' + rooms.size + ' oda yuklendi.');
   } catch (e) {
@@ -272,7 +291,9 @@ function roomStateMessage(roomName) {
     players: room ? Array.from(room.players.values()).map((p) => ({ ...p, shielded: (room.shields.get(p.id) || 0) > now })) : [],
     itId: room ? room.itId : null,
     mode: room ? room.mode : 'chat',
-    scores: room ? Array.from(room.scores.entries()).map(([id, secs]) => ({ id, secs })) : [],
+    scores: room ? Array.from(room.scores.entries()).map(([id, score]) => ({ id, score })) : [],
+    roundPhase: room ? room.roundPhase : 'waiting',
+    roundEndsAt: room ? room.roundEndsAt : 0,
   };
 }
 
@@ -285,13 +306,43 @@ const POWERUP_TYPES_GAME = ['speed', 'teleport', 'shield'];
 const POWERUP_TYPES_CHAT = ['dumpling', 'squishy', 'donut', 'boba'];
 let nextPowerupId = 1;
 
+const ROUND_MS = 60000;
+const INTERMISSION_MS = 8000;
+const TAGLIKE_MODES = ['tag', 'hideseek'];
+
 setInterval(() => {
   const now = Date.now();
   for (const [roomName, room] of rooms.entries()) {
-    if (room.players.size >= 2) {
-      for (const p of room.players.values()) {
-        if (room.mode !== 'chat' && p.id !== room.itId) {
-          room.scores.set(p.id, (room.scores.get(p.id) || 0) + 1);
+    if (TAGLIKE_MODES.includes(room.mode)) {
+      if (room.players.size < 2) {
+        room.roundPhase = 'waiting';
+      } else if (room.roundPhase === 'waiting') {
+        room.roundPhase = 'playing';
+        room.itId = null;
+        room.scores.clear();
+        room.roundEndsAt = now + ROUND_MS;
+        broadcastToRoom(roomName, { type: 'notify', text: '🏁 Round başladı! 60 saniye' });
+      } else if (now >= room.roundEndsAt) {
+        if (room.roundPhase === 'playing') {
+          const sorted = Array.from(room.scores.entries()).sort((a, b) => b[1] - a[1]);
+          const winner = sorted.length ? Array.from(room.players.values()).find((p) => p.id === sorted[0][0]) : null;
+          const text = winner ? ('🏁 Round bitti! Kazanan: ' + winner.name + ' (' + sorted[0][1] + 's)') : '🏁 Round bitti!';
+          broadcastToRoom(roomName, { type: 'notify', text });
+          room.roundPhase = 'intermission';
+          room.roundEndsAt = now + INTERMISSION_MS;
+        } else {
+          room.roundPhase = 'playing';
+          room.itId = null;
+          room.scores.clear();
+          room.roundEndsAt = now + ROUND_MS;
+          broadcastToRoom(roomName, { type: 'notify', text: '🏁 Yeni round başladı!' });
+        }
+      }
+      if (room.roundPhase === 'playing') {
+        for (const p of room.players.values()) {
+          if (p.id !== room.itId) {
+            room.scores.set(p.id, (room.scores.get(p.id) || 0) + 1);
+          }
         }
       }
     }
@@ -303,7 +354,7 @@ setInterval(() => {
       if (now - p.spawnedAt > POWERUP_TTL_MS) room.powerups.delete(pid);
     }
 
-    if (room.players.size > 0 && now >= room.nextRainAt) {
+    if (room.mode !== 'football' && room.players.size > 0 && now >= room.nextRainAt) {
       const margin = 0.08;
       const count = 4 + Math.floor(Math.random() * 3);
       const types = room.mode === 'chat' ? POWERUP_TYPES_CHAT : POWERUP_TYPES_GAME;
@@ -325,6 +376,54 @@ setInterval(() => {
     }
   }
 }, 1000);
+
+const FOOTBALL_FRICTION = 0.97;
+const KICK_RADIUS = 0.09;
+const KICK_POWER = 1.4;
+const GOAL_HALF_HEIGHT = 0.35;
+const GOAL_DEPTH = 0.08;
+
+function scoreGoal(roomName, room) {
+  const scorer = room.lastToucher;
+  if (scorer) {
+    room.scores.set(scorer, (room.scores.get(scorer) || 0) + 1);
+    const info = Array.from(room.players.values()).find((p) => p.id === scorer);
+    broadcastToRoom(roomName, { type: 'notify', text: '⚽ ' + (info ? info.name : 'Biri') + ' gol attı!' });
+  }
+  room.ball.x = WORLD_W / 2;
+  room.ball.y = WORLD_H / 2;
+  room.ball.vx = 0;
+  room.ball.vy = 0;
+  room.lastToucher = null;
+  broadcastToRoom(roomName, roomStateMessage(roomName));
+}
+
+setInterval(() => {
+  for (const [roomName, room] of rooms.entries()) {
+    if (room.mode !== 'football') continue;
+    const b = room.ball;
+    b.x += b.vx * 0.05;
+    b.y += b.vy * 0.05;
+    b.vx *= FOOTBALL_FRICTION;
+    b.vy *= FOOTBALL_FRICTION;
+
+    const inGoalY = b.y > (WORLD_H / 2 - GOAL_HALF_HEIGHT) && b.y < (WORLD_H / 2 + GOAL_HALF_HEIGHT);
+    if (b.x < GOAL_DEPTH && inGoalY) {
+      scoreGoal(roomName, room);
+      continue;
+    }
+    if (b.x > WORLD_W - GOAL_DEPTH && inGoalY) {
+      scoreGoal(roomName, room);
+      continue;
+    }
+    if (b.x < 0.03) { b.x = 0.03; b.vx *= -0.6; }
+    if (b.x > WORLD_W - 0.03) { b.x = WORLD_W - 0.03; b.vx *= -0.6; }
+    if (b.y < 0.03) { b.y = 0.03; b.vy *= -0.6; }
+    if (b.y > WORLD_H - 0.03) { b.y = WORLD_H - 0.03; b.vy *= -0.6; }
+
+    broadcastToRoom(roomName, { type: 'ball', x: b.x, y: b.y });
+  }
+}, 50);
 
 function leaveRoom(ws) {
   const roomName = ws.roomName;
@@ -406,7 +505,7 @@ wss.on('connection', (ws, req) => {
         ws.send(JSON.stringify({ type: 'create-error', reason: 'taken' }));
         return;
       }
-      rooms.set(name, { password, ownerId: ws.userId, mode, itId: null, lastTagAt: 0, players: new Map(), scores: new Map(), powerups: new Map(), shields: new Map(), nextRainAt: Date.now() + 15000 + Math.random() * 15000 });
+      rooms.set(name, makeRoom(password, ws.userId, mode));
       ws.roomName = name;
       if (redis) {
         await redis.set('room:' + name, { password, ownerId: ws.userId, mode, createdAt: Date.now() });
@@ -472,7 +571,7 @@ wss.on('connection', (ws, req) => {
         broadcastToRoom(ws.roomName, { type: 'notify', text: (msg.name || 'Biri') + ' katıldı' });
       }
 
-      if (room.mode !== 'chat') {
+      if (TAGLIKE_MODES.includes(room.mode) && room.roundPhase === 'playing') {
         if (room.itId === null && room.players.size >= 2) {
           const ids = Array.from(room.players.values()).map((p) => p.id);
           room.itId = ids[Math.floor(Math.random() * ids.length)];
@@ -491,6 +590,17 @@ wss.on('connection', (ws, req) => {
               }
             }
           }
+        }
+      }
+
+      if (room.mode === 'football') {
+        const b = room.ball;
+        const bdx = b.x - msg.x, bdy = b.y - msg.y;
+        const bdist = Math.hypot(bdx, bdy);
+        if (bdist < KICK_RADIUS && bdist > 0.001) {
+          b.vx = (bdx / bdist) * KICK_POWER;
+          b.vy = (bdy / bdist) * KICK_POWER;
+          room.lastToucher = id;
         }
       }
 
