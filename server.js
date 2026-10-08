@@ -31,6 +31,7 @@ async function getUser(id) {
 async function saveUser(user) {
   if (!redis) return;
   await redis.set('user:' + user.id, user);
+  await redis.sadd('users:index', user.id);
 }
 
 passport.serializeUser((user, done) => done(null, user.id));
@@ -331,8 +332,8 @@ function broadcastRoomList() {
   });
 }
 
-app.get('/api/online-users', (req, res) => {
-  const seen = new Map();
+app.get('/api/online-users', async (req, res) => {
+  const online = new Map();
   wss.clients.forEach((client) => {
     if (client.readyState === WebSocket.OPEN && client.userId && client.name) {
       let room = client.roomName || null;
@@ -340,10 +341,30 @@ app.get('/api/online-users', (req, res) => {
         const r = rooms.get(room);
         if (r && r.password) room = null;
       }
-      seen.set(client.userId, { name: client.name, room });
+      online.set(client.userId, { name: client.name, room });
     }
   });
-  res.json({ users: Array.from(seen.values()) });
+  if (!redis) {
+    res.json({ users: Array.from(online.values()).map((u) => ({ name: u.name, room: u.room, online: true })) });
+    return;
+  }
+  try {
+    const ids = await redis.smembers('users:index');
+    const users = [];
+    for (const id of ids) {
+      const live = online.get(id);
+      if (live) {
+        users.push({ name: live.name, room: live.room, online: true });
+        continue;
+      }
+      const data = await redis.get('user:' + id);
+      if (data && data.name) users.push({ name: data.name, room: null, online: false });
+    }
+    users.sort((a, b) => (b.online - a.online) || a.name.localeCompare(b.name));
+    res.json({ users });
+  } catch (e) {
+    res.json({ users: Array.from(online.values()).map((u) => ({ name: u.name, room: u.room, online: true })) });
+  }
 });
 
 app.get('/api/find-players', (req, res) => {
