@@ -125,6 +125,34 @@ app.get('/api/me', (req, res) => {
   }
 });
 
+async function recordHallOfFameWin(userId, name) {
+  if (!redis) return;
+  try {
+    const key = 'hof:' + userId;
+    const cur = (await redis.get(key)) || { name, wins: 0 };
+    cur.name = name;
+    cur.wins = (cur.wins || 0) + 1;
+    await redis.set(key, cur);
+    await redis.sadd('hof:index', userId);
+  } catch (e) { /* ignore */ }
+}
+
+app.get('/api/hall-of-fame', async (req, res) => {
+  if (!redis) { res.json({ entries: [] }); return; }
+  try {
+    const ids = await redis.smembers('hof:index');
+    const entries = [];
+    for (const uid of ids) {
+      const data = await redis.get('hof:' + uid);
+      if (data) entries.push({ name: data.name, wins: data.wins });
+    }
+    entries.sort((a, b) => b.wins - a.wins);
+    res.json({ entries: entries.slice(0, 10) });
+  } catch (e) {
+    res.json({ entries: [] });
+  }
+});
+
 const LANG_CONFIG = {
   tr: { name: 'Turkish', script: '' },
   en: { name: 'English', script: '' },
@@ -218,7 +246,8 @@ server.on('upgrade', (req, socket, head) => {
 // rooms: Map(name -> { password: string|null, ownerId: string|null, mode: 'chat'|'tag'|'hideseek', players: Map(ws -> {id,x,y,color,name}) })
 const rooms = new Map();
 const takenNames = new Map(); // lowercase name -> ws
-const GAME_MODES = ['chat', 'tag', 'hideseek', 'football', 'battle'];
+const GAME_MODES = ['chat', 'tag', 'hideseek', 'football', 'battle', 'ffa', 'royale', 'zombie', 'ctf', 'koth', 'race', 'paint'];
+const TEAM_MODES = ['battle', 'ctf'];
 let nextId = 1;
 
 function makeRoom(password, ownerId, mode, teamSize) {
@@ -240,6 +269,14 @@ function makeRoom(password, ownerId, mode, teamSize) {
     roundEndsAt: 0,
     teamScores: { red: 0, blue: 0 },
     lastHitAt: new Map(),
+    zombies: new Set(),
+    raceWinner: null,
+    zoneRadius: null,
+    flags: {
+      red: { x: RED_SPAWN.x, y: RED_SPAWN.y, carriedBy: null },
+      blue: { x: BLUE_SPAWN.x, y: BLUE_SPAWN.y, carriedBy: null },
+    },
+    paintGrid: new Map(),
   };
 }
 
@@ -307,6 +344,9 @@ function roomStateMessage(roomName) {
     roundPhase: room ? room.roundPhase : 'waiting',
     roundEndsAt: room ? room.roundEndsAt : 0,
     teamScores: room ? room.teamScores : null,
+    zombies: room && room.mode === 'zombie' ? Array.from(room.zombies) : null,
+    flags: room && room.mode === 'ctf' ? room.flags : null,
+    zoneRadius: room && (room.mode === 'royale' || room.mode === 'koth') ? room.zoneRadius : null,
   };
 }
 
@@ -327,45 +367,120 @@ const BLUE_SPAWN = { x: WORLD_W - 0.3, y: WORLD_H / 2 };
 const ROUND_MS = 60000;
 const INTERMISSION_MS = 8000;
 const TAGLIKE_MODES = ['tag', 'hideseek'];
+const ROUND_MODES = ['tag', 'hideseek', 'royale', 'koth', 'zombie', 'race'];
+const PAINT_GRID_N = 16;
+
+function startRound(room, roomName, now, isFirst) {
+  room.roundPhase = 'playing';
+  room.scores.clear();
+  room.roundEndsAt = now + ROUND_MS;
+  room.raceWinner = null;
+  if (TAGLIKE_MODES.includes(room.mode)) {
+    room.itId = null;
+  } else if (room.mode === 'zombie') {
+    room.zombies = new Set();
+    const ids = Array.from(room.players.values()).map((p) => p.id);
+    if (ids.length) room.zombies.add(ids[Math.floor(Math.random() * ids.length)]);
+  } else if (room.mode === 'race') {
+    const startPt = { x: 0.3, y: 0.3 };
+    for (const [pws, p] of room.players.entries()) {
+      p.x = startPt.x + (Math.random() - 0.5) * 0.15;
+      p.y = startPt.y + (Math.random() - 0.5) * 0.15;
+      if (pws.readyState === WebSocket.OPEN) {
+        pws.send(JSON.stringify({ type: 'force-position', x: p.x, y: p.y }));
+      }
+    }
+  }
+  broadcastToRoom(roomName, { type: 'notify', key: isFirst ? 'round_start' : 'round_new' });
+}
+
+function endRound(room, roomName, now) {
+  let winnerEntry = null;
+  let winnerScore = null;
+  const noScore = room.mode === 'race';
+  if (room.mode === 'race') {
+    if (room.raceWinner) {
+      winnerEntry = Array.from(room.players.entries()).find(([, p]) => p.id === room.raceWinner);
+    }
+  } else {
+    const sorted = Array.from(room.scores.entries()).sort((a, b) => b[1] - a[1]);
+    if (sorted.length && sorted[0][1] > 0) {
+      winnerEntry = Array.from(room.players.entries()).find(([, p]) => p.id === sorted[0][0]);
+      winnerScore = sorted[0][1];
+    }
+  }
+  if (winnerEntry) {
+    const [winnerWs, winnerP] = winnerEntry;
+    broadcastToRoom(roomName, { type: 'notify', key: noScore ? 'round_end_winner_noscore' : 'round_end_winner', name: winnerP.name, score: winnerScore });
+    if (winnerWs.userId) recordHallOfFameWin(winnerWs.userId, winnerP.name);
+  } else {
+    broadcastToRoom(roomName, { type: 'notify', key: 'round_end_none' });
+  }
+  room.roundPhase = 'intermission';
+  room.roundEndsAt = now + INTERMISSION_MS;
+}
+
+function tickRoundScoring(room, roomName, now) {
+  if (TAGLIKE_MODES.includes(room.mode)) {
+    for (const p of room.players.values()) {
+      if (p.id !== room.itId) room.scores.set(p.id, (room.scores.get(p.id) || 0) + 1);
+    }
+  } else if (room.mode === 'zombie') {
+    for (const p of room.players.values()) {
+      if (!room.zombies.has(p.id)) room.scores.set(p.id, (room.scores.get(p.id) || 0) + 1);
+    }
+    if (room.players.size >= 2 && room.zombies.size >= room.players.size) {
+      endRound(room, roomName, now);
+    }
+  } else if (room.mode === 'royale' || room.mode === 'koth') {
+    let radius;
+    if (room.mode === 'royale') {
+      const elapsed = ROUND_MS - (room.roundEndsAt - now);
+      const t = Math.min(1, Math.max(0, elapsed / ROUND_MS));
+      radius = 1.2 - t * 0.95;
+    } else {
+      radius = 0.3;
+    }
+    room.zoneRadius = radius;
+    for (const p of room.players.values()) {
+      const dx = p.x - WORLD_W / 2, dy = p.y - WORLD_H / 2;
+      if (Math.hypot(dx, dy) <= radius) {
+        room.scores.set(p.id, (room.scores.get(p.id) || 0) + 1);
+      }
+    }
+  }
+}
+
+function recomputePaintScores(room) {
+  const tally = new Map();
+  for (const owner of room.paintGrid.values()) {
+    tally.set(owner, (tally.get(owner) || 0) + 1);
+  }
+  room.scores = tally;
+}
 
 setInterval(() => {
   const now = Date.now();
   for (const [roomName, room] of rooms.entries()) {
-    if (TAGLIKE_MODES.includes(room.mode)) {
+    if (ROUND_MODES.includes(room.mode)) {
       if (room.players.size < 2) {
         room.roundPhase = 'waiting';
       } else if (room.roundPhase === 'waiting') {
-        room.roundPhase = 'playing';
-        room.itId = null;
-        room.scores.clear();
-        room.roundEndsAt = now + ROUND_MS;
-        broadcastToRoom(roomName, { type: 'notify', key: 'round_start' });
+        startRound(room, roomName, now, true);
       } else if (now >= room.roundEndsAt) {
         if (room.roundPhase === 'playing') {
-          const sorted = Array.from(room.scores.entries()).sort((a, b) => b[1] - a[1]);
-          const winner = sorted.length ? Array.from(room.players.values()).find((p) => p.id === sorted[0][0]) : null;
-          if (winner) {
-            broadcastToRoom(roomName, { type: 'notify', key: 'round_end_winner', name: winner.name, score: sorted[0][1] });
-          } else {
-            broadcastToRoom(roomName, { type: 'notify', key: 'round_end_none' });
-          }
-          room.roundPhase = 'intermission';
-          room.roundEndsAt = now + INTERMISSION_MS;
+          endRound(room, roomName, now);
         } else {
-          room.roundPhase = 'playing';
-          room.itId = null;
-          room.scores.clear();
-          room.roundEndsAt = now + ROUND_MS;
-          broadcastToRoom(roomName, { type: 'notify', key: 'round_new' });
+          startRound(room, roomName, now, false);
         }
       }
       if (room.roundPhase === 'playing') {
-        for (const p of room.players.values()) {
-          if (p.id !== room.itId) {
-            room.scores.set(p.id, (room.scores.get(p.id) || 0) + 1);
-          }
-        }
+        tickRoundScoring(room, roomName, now);
       }
+    }
+
+    if (room.mode === 'paint') {
+      recomputePaintScores(room);
     }
 
     for (const [pid, exp] of room.shields.entries()) {
@@ -531,7 +646,7 @@ wss.on('connection', (ws, req) => {
       rooms.set(name, room);
       ws.roomName = name;
       let team = null;
-      if (mode === 'battle') {
+      if (TEAM_MODES.includes(mode)) {
         team = assignBattleTeam(room);
         ws.battleTeam = team;
       }
@@ -554,13 +669,13 @@ wss.on('connection', (ws, req) => {
         ws.send(JSON.stringify({ type: 'join-error', reason: 'wrong-password' }));
         return;
       }
-      if (room.mode === 'battle' && room.players.size >= room.teamSize * 2) {
+      if (TEAM_MODES.includes(room.mode) && room.players.size >= room.teamSize * 2) {
         ws.send(JSON.stringify({ type: 'join-error', reason: 'full' }));
         return;
       }
       ws.roomName = name;
       let team = null;
-      if (room.mode === 'battle') {
+      if (TEAM_MODES.includes(room.mode)) {
         team = assignBattleTeam(room);
         ws.battleTeam = team;
       }
@@ -602,7 +717,7 @@ wss.on('connection', (ws, req) => {
 
     if (msg.type === 'presence') {
       const isNewJoin = !room.players.has(ws);
-      room.players.set(ws, { id, x: msg.x, y: msg.y, color: msg.color, name: msg.name, accessory: typeof msg.accessory === 'string' ? msg.accessory.slice(0, 20) : null, team: room.mode === 'battle' ? ws.battleTeam : undefined });
+      room.players.set(ws, { id, x: msg.x, y: msg.y, color: msg.color, name: msg.name, accessory: typeof msg.accessory === 'string' ? msg.accessory.slice(0, 20) : null, team: TEAM_MODES.includes(room.mode) ? ws.battleTeam : undefined });
 
       if (isNewJoin) {
         broadcastToRoom(ws.roomName, { type: 'notify', key: 'join', name: msg.name || null });
@@ -641,6 +756,58 @@ wss.on('connection', (ws, req) => {
         }
       }
 
+      if (room.mode === 'zombie' && room.roundPhase === 'playing' && room.zombies.has(id)) {
+        const nowZ = Date.now();
+        if (nowZ - room.lastTagAt > TAG_COOLDOWN_MS) {
+          for (const p of room.players.values()) {
+            if (room.zombies.has(p.id)) continue;
+            if (Math.hypot(p.x - msg.x, p.y - msg.y) < TAG_RADIUS) {
+              room.zombies.add(p.id);
+              room.lastTagAt = nowZ;
+              broadcastToRoom(ws.roomName, { type: 'notify', key: 'infected', name: p.name });
+              break;
+            }
+          }
+        }
+      }
+
+      if (room.mode === 'ctf' && ws.battleTeam) {
+        const myColor = ws.battleTeam;
+        const enemyColor = myColor === 'red' ? 'blue' : 'red';
+        const f = room.flags[enemyColor];
+        if (f.carriedBy === id) {
+          f.x = msg.x;
+          f.y = msg.y;
+          const myBase = myColor === 'red' ? RED_SPAWN : BLUE_SPAWN;
+          if (Math.hypot(msg.x - myBase.x, msg.y - myBase.y) < 0.15) {
+            room.teamScores[myColor] = (room.teamScores[myColor] || 0) + 1;
+            f.carriedBy = null;
+            f.x = enemyColor === 'red' ? RED_SPAWN.x : BLUE_SPAWN.x;
+            f.y = enemyColor === 'red' ? RED_SPAWN.y : BLUE_SPAWN.y;
+            broadcastToRoom(ws.roomName, { type: 'notify', key: 'ctf_score', name: msg.name });
+          }
+        }
+      }
+
+      if (room.mode === 'race' && room.roundPhase === 'playing' && !room.raceWinner) {
+        const finish = { x: WORLD_W - 0.3, y: WORLD_H - 0.3 };
+        if (Math.hypot(msg.x - finish.x, msg.y - finish.y) < 0.15) {
+          room.raceWinner = id;
+          room.roundEndsAt = Date.now();
+          broadcastToRoom(ws.roomName, { type: 'notify', key: 'race_finish', name: msg.name });
+        }
+      }
+
+      if (room.mode === 'paint') {
+        const gx = Math.floor((msg.x / WORLD_W) * PAINT_GRID_N);
+        const gy = Math.floor((msg.y / WORLD_H) * PAINT_GRID_N);
+        const key = gx + ',' + gy;
+        if (room.paintGrid.get(key) !== id) {
+          room.paintGrid.set(key, id);
+          broadcastToRoom(ws.roomName, { type: 'paint', gx, gy, color: msg.color });
+        }
+      }
+
       broadcastToRoom(ws.roomName, roomStateMessage(ws.roomName));
     } else if (msg.type === 'honk') {
       broadcastToRoom(ws.roomName, { type: 'honk', id, x: msg.x, y: msg.y, color: msg.color }, ws);
@@ -648,7 +815,7 @@ wss.on('connection', (ws, req) => {
         const now3 = Date.now();
         const lastHit = room.lastHitAt.get(id) || 0;
         if (now3 - lastHit > HIT_COOLDOWN_MS) {
-          for (const p of room.players.values()) {
+          for (const [pws, p] of room.players.entries()) {
             if (p.id === id || p.team === ws.battleTeam) continue;
             if ((room.shields.get(p.id) || 0) > now3) continue;
             if (Math.hypot(p.x - msg.x, p.y - msg.y) < HIT_RADIUS) {
@@ -657,10 +824,47 @@ wss.on('connection', (ws, req) => {
               const spawn = p.team === 'red' ? RED_SPAWN : BLUE_SPAWN;
               p.x = spawn.x + (Math.random() - 0.5) * 0.1;
               p.y = spawn.y + (Math.random() - 0.5) * 0.1;
+              if (pws.readyState === WebSocket.OPEN) {
+                pws.send(JSON.stringify({ type: 'force-position', x: p.x, y: p.y }));
+              }
               broadcastToRoom(ws.roomName, { type: 'notify', key: 'hit', name: p.name });
               broadcastToRoom(ws.roomName, roomStateMessage(ws.roomName));
               break;
             }
+          }
+        }
+      } else if (room.mode === 'ffa') {
+        const nowF = Date.now();
+        const lastHit = room.lastHitAt.get(id) || 0;
+        if (nowF - lastHit > HIT_COOLDOWN_MS) {
+          for (const [pws, p] of room.players.entries()) {
+            if (p.id === id) continue;
+            if ((room.shields.get(p.id) || 0) > nowF) continue;
+            if (Math.hypot(p.x - msg.x, p.y - msg.y) < HIT_RADIUS) {
+              room.lastHitAt.set(id, nowF);
+              room.scores.set(id, (room.scores.get(id) || 0) + 1);
+              const rx = 0.1 + Math.random() * (WORLD_W - 0.2);
+              const ry = 0.1 + Math.random() * (WORLD_H - 0.2);
+              p.x = rx;
+              p.y = ry;
+              if (pws.readyState === WebSocket.OPEN) {
+                pws.send(JSON.stringify({ type: 'force-position', x: rx, y: ry }));
+              }
+              broadcastToRoom(ws.roomName, { type: 'notify', key: 'hit', name: p.name });
+              broadcastToRoom(ws.roomName, roomStateMessage(ws.roomName));
+              break;
+            }
+          }
+        }
+      } else if (room.mode === 'ctf' && ws.battleTeam) {
+        const enemyColor = ws.battleTeam === 'red' ? 'blue' : 'red';
+        const f = room.flags[enemyColor];
+        if (!f.carriedBy) {
+          const fdist = Math.hypot(f.x - msg.x, f.y - msg.y);
+          if (fdist < 0.12) {
+            f.carriedBy = id;
+            broadcastToRoom(ws.roomName, { type: 'notify', key: 'ctf_pickup', name: msg.name });
+            broadcastToRoom(ws.roomName, roomStateMessage(ws.roomName));
           }
         }
       }
