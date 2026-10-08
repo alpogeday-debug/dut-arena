@@ -31,7 +31,6 @@ async function getUser(id) {
 async function saveUser(user) {
   if (!redis) return;
   await redis.set('user:' + user.id, user);
-  await redis.sadd('users:index', user.id);
 }
 
 passport.serializeUser((user, done) => done(null, user.id));
@@ -349,15 +348,16 @@ app.get('/api/online-users', async (req, res) => {
     return;
   }
   try {
-    const ids = await redis.smembers('users:index');
+    const keys = await redis.keys('user:*');
     const users = [];
-    for (const id of ids) {
+    for (const key of keys) {
+      const id = key.slice('user:'.length);
       const live = online.get(id);
       if (live) {
         users.push({ name: live.name, room: live.room, online: true });
         continue;
       }
-      const data = await redis.get('user:' + id);
+      const data = await redis.get(key);
       if (data && data.name) users.push({ name: data.name, room: null, online: false });
     }
     users.sort((a, b) => (b.online - a.online) || a.name.localeCompare(b.name));
