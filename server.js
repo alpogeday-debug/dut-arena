@@ -331,6 +331,21 @@ function broadcastRoomList() {
   });
 }
 
+app.get('/api/online-users', (req, res) => {
+  const seen = new Map();
+  wss.clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN && client.userId && client.name) {
+      let room = client.roomName || null;
+      if (room) {
+        const r = rooms.get(room);
+        if (r && r.password) room = null;
+      }
+      seen.set(client.userId, { name: client.name, room });
+    }
+  });
+  res.json({ users: Array.from(seen.values()) });
+});
+
 app.get('/api/find-players', (req, res) => {
   const wanted = String(req.query.names || '')
     .split(',')
@@ -648,6 +663,7 @@ wss.on('connection', (ws, req) => {
       if (ws.chosenNameKey) takenNames.delete(ws.chosenNameKey);
       takenNames.set(key, ws);
       ws.chosenNameKey = key;
+      ws.name = name;
       if (ws.userId) {
         await saveUser({ id: ws.userId, provider: ws.userId.split(':')[0], name, color: color || randomColor() });
       }
