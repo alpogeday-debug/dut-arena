@@ -137,6 +137,16 @@ async function recordHallOfFameWin(userId, name) {
   } catch (e) { /* ignore */ }
 }
 
+app.get('/api/profile/:userId', async (req, res) => {
+  if (!redis) { res.json({ wins: 0 }); return; }
+  try {
+    const data = await redis.get('hof:' + req.params.userId);
+    res.json({ wins: (data && data.wins) || 0 });
+  } catch (e) {
+    res.json({ wins: 0 });
+  }
+});
+
 app.get('/api/hall-of-fame', async (req, res) => {
   if (!redis) { res.json({ entries: [] }); return; }
   try {
