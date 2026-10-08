@@ -233,10 +233,12 @@
     padding-block:calc(16px + env(safe-area-inset-top,0px)) calc(16px + env(safe-area-inset-bottom,0px));
     background:var(--bg);
     z-index:10;
+    overflow-y:auto;
   }
   .menu-panel{
     width:100%;
     max-width:360px;
+    margin-block:auto;
     background:var(--panel);
     border:1px solid var(--panel-border);
     border-radius:16px;
@@ -318,6 +320,10 @@
     display:flex;
     flex-direction:column;
     gap:8px;
+    max-height:min(320px, 42vh);
+    overflow-y:auto;
+    overscroll-behavior:contain;
+    padding-right:4px;
   }
   .mode-btn{
     width:100%;
