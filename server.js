@@ -331,6 +331,27 @@ function broadcastRoomList() {
   });
 }
 
+app.get('/api/find-players', (req, res) => {
+  const wanted = String(req.query.names || '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean)
+    .slice(0, 50);
+  const found = {};
+  if (wanted.length) {
+    for (const [roomName, room] of rooms.entries()) {
+      if (room.password) continue;
+      for (const p of room.players.values()) {
+        const key = (p.name || '').toLowerCase();
+        if (wanted.includes(key) && !found[key]) {
+          found[key] = roomName;
+        }
+      }
+    }
+  }
+  res.json({ found });
+});
+
 function broadcastToRoom(roomName, data, exclude) {
   const room = rooms.get(roomName);
   if (!room) return;
