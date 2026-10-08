@@ -344,7 +344,7 @@ app.get('/api/online-users', async (req, res) => {
     }
   });
   if (!redis) {
-    res.json({ users: Array.from(online.values()).map((u) => ({ name: u.name, room: u.room, online: true })) });
+    res.json({ users: Array.from(online.values()).map((u) => ({ name: u.name, room: u.room, online: true })), debugRedis: false });
     return;
   }
   try {
@@ -361,9 +361,9 @@ app.get('/api/online-users', async (req, res) => {
       if (data && data.name) users.push({ name: data.name, room: null, online: false });
     }
     users.sort((a, b) => (b.online - a.online) || a.name.localeCompare(b.name));
-    res.json({ users });
+    res.json({ users, debugRedis: true, debugUserKeyCount: keys.length });
   } catch (e) {
-    res.json({ users: Array.from(online.values()).map((u) => ({ name: u.name, room: u.room, online: true })) });
+    res.json({ users: Array.from(online.values()).map((u) => ({ name: u.name, room: u.room, online: true })), debugRedis: true, debugError: e.message });
   }
 });
 
