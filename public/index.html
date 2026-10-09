@@ -1717,6 +1717,17 @@
   let paintMap = new Map();
   const isHalloweenSeason = new Date().getMonth() === 9;
 
+  function getSeason(){
+    const m = new Date().getMonth();
+    if (m === 11 || m === 0 || m === 1) return 'winter';
+    if (m >= 2 && m <= 4) return 'spring';
+    if (m >= 5 && m <= 7) return 'summer';
+    return 'autumn';
+  }
+  const currentSeason = getSeason();
+  const SEASON_BG = { winter: '#0d1420', spring: '#0f1c14', summer: '#1c1710', autumn: '#1c1410' };
+  const SEASON_PARTICLE_EMOJI = { winter: '❄️', spring: '🌸', summer: '☀️', autumn: '🍂' };
+
   const PAINT_GRID_N_CLIENT = 16;
   const WORLD_W = 2.4;
   const WORLD_H = 2.4;
@@ -2063,6 +2074,51 @@
       ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
       ctx.restore();
     }
+  }
+
+  const seasonalParticles = [];
+  const SEASON_PARTICLE_COUNT = 16;
+  function spawnSeasonalParticle(y){
+    return {
+      x: Math.random() * canvas.width,
+      y: y !== undefined ? y : Math.random() * canvas.height,
+      vx: (Math.random() - 0.5) * 0.4 * devicePixelRatio,
+      vy: (0.3 + Math.random() * 0.5) * devicePixelRatio,
+      size: (10 + Math.random() * 10) * devicePixelRatio,
+      rot: Math.random() * Math.PI * 2,
+      vrot: (Math.random() - 0.5) * 0.02,
+      sway: Math.random() * Math.PI * 2,
+    };
+  }
+  function drawSeasonalParticles(){
+    const emoji = SEASON_PARTICLE_EMOJI[currentSeason];
+    if (!emoji) return;
+    if (seasonalParticles.length === 0) {
+      for (let i = 0; i < SEASON_PARTICLE_COUNT; i++) seasonalParticles.push(spawnSeasonalParticle());
+    }
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (const p of seasonalParticles) {
+      p.sway += 0.02;
+      p.x += p.vx + Math.sin(p.sway) * 0.3 * devicePixelRatio;
+      p.y += p.vy;
+      p.rot += p.vrot;
+      if (p.y > canvas.height + 20 * devicePixelRatio) {
+        p.y = -20 * devicePixelRatio;
+        p.x = Math.random() * canvas.width;
+      }
+      if (p.x < -20 * devicePixelRatio) p.x = canvas.width + 20 * devicePixelRatio;
+      if (p.x > canvas.width + 20 * devicePixelRatio) p.x = -20 * devicePixelRatio;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.font = p.size + 'px sans-serif';
+      ctx.fillText(emoji, 0, 0);
+      ctx.restore();
+    }
+    ctx.restore();
   }
 
   function drawMinimap(){
@@ -2609,7 +2665,7 @@
   }
 
   function render(now){
-    ctx.fillStyle = '#100e1c';
+    ctx.fillStyle = SEASON_BG[currentSeason] || '#100e1c';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     drawGrid();
     drawPaint();
@@ -2627,6 +2683,7 @@
     }
 
     drawPulses(now);
+    drawSeasonalParticles();
     drawNight();
     drawZone();
     drawFog();
