@@ -28,6 +28,38 @@
     --accent-2:#ff4d94;
     color-scheme: dark;
   }
+  :root[data-season="winter"]{
+    --bg:#0d1420;
+    --grid:#1a2436;
+    --panel:#16223aee;
+    --panel-border:#2d4568;
+    --accent:#5ec8ff;
+    --accent-2:#ff6b6b;
+  }
+  :root[data-season="spring"]{
+    --bg:#0f1c14;
+    --grid:#1e3324;
+    --panel:#16291cee;
+    --panel-border:#2f5a3c;
+    --accent:#8fe39a;
+    --accent-2:#ff8fc0;
+  }
+  :root[data-season="summer"]{
+    --bg:#1c1710;
+    --grid:#332a1a;
+    --panel:#2a2114ee;
+    --panel-border:#5a4a2a;
+    --accent:#ffce3d;
+    --accent-2:#ff6b4d;
+  }
+  :root[data-season="autumn"]{
+    --bg:#1c1410;
+    --grid:#332318;
+    --panel:#2a1d14ee;
+    --panel-border:#5a3a24;
+    --accent:#ffa94d;
+    --accent-2:#d6542b;
+  }
   *{box-sizing:border-box}
   html,body{height:100%}
   body{
@@ -809,6 +841,13 @@
     100%{ transform:translate(-50%, -140%); opacity:0; }
   }
 </style>
+<script>
+(function(){
+  var m = new Date().getMonth();
+  var season = (m === 11 || m === 0 || m === 1) ? 'winter' : (m >= 2 && m <= 4) ? 'spring' : (m >= 5 && m <= 7) ? 'summer' : 'autumn';
+  document.documentElement.setAttribute('data-season', season);
+})();
+</script>
 </head>
 <body>
 
@@ -1724,8 +1763,9 @@
     if (m >= 5 && m <= 7) return 'summer';
     return 'autumn';
   }
-  const currentSeason = getSeason();
+  const currentSeason = document.documentElement.getAttribute('data-season') || getSeason();
   const SEASON_BG = { winter: '#0d1420', spring: '#0f1c14', summer: '#1c1710', autumn: '#1c1410' };
+  const SEASON_GRID = { winter: '#1a2436', spring: '#1e3324', summer: '#332a1a', autumn: '#332318' };
   const SEASON_PARTICLE_EMOJI = { winter: '❄️', spring: '🌸', summer: '☀️', autumn: '🍂' };
 
   const PAINT_GRID_N_CLIENT = 16;
@@ -2429,7 +2469,7 @@
     const step = 48 * devicePixelRatio;
     const offX = (camX * canvas.width) % step;
     const offY = (camY * canvas.height) % step;
-    ctx.strokeStyle = '#241f3a';
+    ctx.strokeStyle = SEASON_GRID[currentSeason] || '#241f3a';
     ctx.lineWidth = 1;
     for (let gx = -offX; gx < w; gx += step) {
       ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, h); ctx.stroke();
