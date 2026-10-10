@@ -97,7 +97,8 @@
   .swatch-row{ display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; justify-content:center; }
   .swatch{ width:34px; height:34px; border-radius:8px; cursor:pointer; border:3px solid transparent; display:flex; align-items:center; justify-content:center; font-size:14px; }
   .swatch.selected{ border-color:#fff; }
-  .swatch.locked-swatch{ cursor:default; opacity:.7; }
+  .swatch.locked-swatch{ cursor:pointer; opacity:.8; position:relative; flex-direction:column; gap:0; }
+  .swatch-price{ font-size:8px; font-weight:700; color:#ffd23f; }
   #room-badge{
     pointer-events:none; color:#fff; font-size:13px; font-weight:700;
     background:rgba(20,20,30,.65); border:1px solid rgba(255,255,255,.2);
@@ -150,6 +151,10 @@
     position:fixed; top:60px; right:16px; z-index:10;
     display:flex; gap:6px; background:rgba(20,20,30,.55); border:1px solid rgba(255,255,255,.2);
     border-radius:10px; padding:7px 9px;
+  }
+  #gold-hud{
+    position:fixed; top:60px; left:16px; z-index:10; color:#ffd23f; font-weight:700; font-size:14px;
+    background:rgba(20,20,30,.55); border:1px solid rgba(255,255,255,.2); border-radius:10px; padding:7px 12px;
   }
   .stone-dot{
     width:16px; height:16px; border-radius:50%; border:1px solid rgba(255,255,255,.35);
@@ -249,6 +254,7 @@
 <div id="interact-prompt" hidden></div>
 
 <div id="stones-hud" hidden></div>
+<div id="gold-hud" hidden>💰 <span id="gold-hud-text">0</span></div>
 <div id="cutscene-banner" hidden></div>
 <div id="achv-toast" hidden></div>
 
@@ -617,11 +623,12 @@
     if (unlockedAchvs.indexOf(id) !== -1) return;
     unlockedAchvs.push(id);
     localStorage.setItem('dutArenaRbxAchv', JSON.stringify(unlockedAchvs));
+    if (typeof addGold === 'function') addGold(10);
     var def = ACHIEVEMENTS.filter(function(a){ return a.id === id; })[0];
     if (!def) return;
     var el = document.getElementById('achv-toast');
     el.innerHTML = '<div class="achv-toast-icon">' + def.emoji + '</div>' +
-      '<div><div class="achv-toast-title">🏆 ' + def.title + '</div><div class="achv-toast-desc">' + def.desc + '</div></div>';
+      '<div><div class="achv-toast-title">🏆 ' + def.title + '</div><div class="achv-toast-desc">' + def.desc + '</div> +10 💰</div></div>';
     el.hidden = false;
     el.classList.add('show');
     clearTimeout(achvToastTimer);
@@ -674,7 +681,7 @@
     addInteractable(0, -3, '🏪 ' + flavor.label, function(){
       if (flavor.item){
         if (addToInventory(flavor.item)) appendChat('Sistem', flavor.msg + ' ' + flavor.item.emoji + ' ' + flavor.item.name);
-        else sellItemForColor();
+        else sellItemForGold();
       } else {
         appendChat('Sistem', flavor.msg);
       }
@@ -702,15 +709,26 @@
   function isColorUnlocked(hex, base){
     return base.indexOf(hex) !== -1 || unlockedColors.indexOf(hex) !== -1;
   }
-  function unlockRandomColor(){
-    var pool = [];
-    AVATAR_SHIRTS_LOCKED.forEach(function(c){ if (unlockedColors.indexOf(c) === -1) pool.push({ hex:c, kind:'shirt' }); });
-    AVATAR_PANTS_LOCKED.forEach(function(c){ if (unlockedColors.indexOf(c) === -1) pool.push({ hex:c, kind:'pants' }); });
-    if (!pool.length) return null;
-    var pick = pool[Math.floor(Math.random() * pool.length)];
-    unlockedColors.push(pick.hex);
+  var COLOR_PRICE = 35;
+  var goldCoins = parseInt(localStorage.getItem('dutArenaRbxGold') || '0', 10) || 0;
+  function updateGoldHud(){
+    var el = document.getElementById('gold-hud-text');
+    if (el) el.textContent = goldCoins;
+  }
+  function saveGold(){ localStorage.setItem('dutArenaRbxGold', String(goldCoins)); updateGoldHud(); }
+  function addGold(amount){ goldCoins += amount; saveGold(); }
+  function buyColor(hex, kind){
+    if (unlockedColors.indexOf(hex) !== -1) return true;
+    if (goldCoins < COLOR_PRICE){
+      appendChat('Sistem', '💰 Yeterli altının yok! (' + COLOR_PRICE + ' altın gerekiyor, ' + goldCoins + ' altının var)');
+      return false;
+    }
+    goldCoins -= COLOR_PRICE;
+    saveGold();
+    unlockedColors.push(hex);
     localStorage.setItem('dutArenaRbxUnlockedColors', JSON.stringify(unlockedColors));
-    return pick;
+    appendChat('Sistem', '💰 Yeni bir ' + (kind === 'shirt' ? 'gömlek' : 'pantolon') + ' rengi satın aldın!');
+    return true;
   }
   var avatarShirt = localStorage.getItem('dutArenaRbxShirt') || AVATAR_SHIRTS[0];
   var avatarPants = localStorage.getItem('dutArenaRbxPants') || AVATAR_PANTS[0];
@@ -1019,10 +1037,12 @@
         document.getElementById('chat-panel').hidden = false;
         document.getElementById('inventory-bar').hidden = false;
         document.getElementById('stones-hud').hidden = false;
+        document.getElementById('gold-hud').hidden = false;
         document.getElementById('touch-joystick').hidden = false;
         document.getElementById('touch-actions').hidden = false;
         document.getElementById('photo-btn').hidden = false;
         renderStonesHud();
+        updateGoldHud();
         if (hasGauntlet) applyGauntletLook();
         started = true;
         unlockAchv('first_join');
@@ -1114,7 +1134,7 @@
     }
     return false;
   }
-  function sellItemForColor(){
+  function sellItemForGold(){
     var filled = [];
     for (var i = 0; i < 4; i++){ if (inventory[i]) filled.push(i); }
     if (!filled.length){
@@ -1123,18 +1143,12 @@
     }
     var slot = filled[Math.floor(Math.random() * filled.length)];
     var sold = inventory[slot];
-    var unlock = unlockRandomColor();
-    if (!unlock){
-      appendChat('Sistem', '🏪 Tüm renkleri zaten açtın, satacak bir şey kalmadı!');
-      return;
-    }
+    var earned = 15 + Math.floor(Math.random() * 21); // 15-35 gold
     inventory[slot] = null;
     if (selectedSlot === slot) selectedSlot = -1;
     renderInventory();
-    if (typeof renderShirtSwatches === 'function') renderShirtSwatches();
-    if (typeof renderPantsSwatches === 'function') renderPantsSwatches();
-    appendChat('Sistem', '🏪 ' + sold.emoji + ' ' + sold.name + '\'ni pazara sattın, yeni bir ' +
-      (unlock.kind === 'shirt' ? 'gömlek' : 'pantolon') + ' rengi kazandın!');
+    addGold(earned);
+    appendChat('Sistem', '🏪 ' + sold.emoji + ' ' + sold.name + '\'ni pazara sattın, +' + earned + ' 💰 kazandın! (Toplam: ' + goldCoins + ')');
   }
   function tryGive(){
     if (!started || selectedSlot < 0 || !inventory[selectedSlot]) return;
@@ -1280,7 +1294,7 @@
     leftLeg.children[0].material.color.set(avatarPants);
     rightLeg.children[0].material.color.set(avatarPants);
   }
-  function buildSwatches(containerId, palette, base, getCurrent, onPick){
+  function buildSwatches(containerId, palette, base, kind, getCurrent, onPick){
     var el = document.getElementById(containerId);
     el.innerHTML = '';
     palette.forEach(function(hex){
@@ -1288,26 +1302,30 @@
       var sw = document.createElement('div');
       sw.className = 'swatch' + (hex === getCurrent() ? ' selected' : '') + (unlocked ? '' : ' locked-swatch');
       sw.style.background = unlocked ? hex : '#2a2a38';
-      sw.title = unlocked ? '' : 'Kilitli — Pazar\'da eşya satarak kazan';
       if (unlocked){
+        sw.title = '';
         sw.addEventListener('click', function(){
           Array.prototype.forEach.call(el.children, function(c){ c.classList.remove('selected'); });
           sw.classList.add('selected');
           onPick(hex);
         });
       } else {
-        sw.innerHTML = '🔒';
+        sw.innerHTML = '🔒<span class="swatch-price">' + COLOR_PRICE + '</span>';
+        sw.title = COLOR_PRICE + ' 💰 karşılığında satın al';
+        sw.addEventListener('click', function(){
+          if (buyColor(hex, kind)){ renderShirtSwatches(); renderPantsSwatches(); }
+        });
       }
       el.appendChild(sw);
     });
   }
   function renderShirtSwatches(){
-    buildSwatches('shirt-swatches', AVATAR_SHIRTS, AVATAR_SHIRTS_BASE, function(){ return avatarShirt; }, function(hex){
+    buildSwatches('shirt-swatches', AVATAR_SHIRTS, AVATAR_SHIRTS_BASE, 'shirt', function(){ return avatarShirt; }, function(hex){
       avatarShirt = hex; localStorage.setItem('dutArenaRbxShirt', hex); applyAvatarColors();
     });
   }
   function renderPantsSwatches(){
-    buildSwatches('pants-swatches', AVATAR_PANTS, AVATAR_PANTS_BASE, function(){ return avatarPants; }, function(hex){
+    buildSwatches('pants-swatches', AVATAR_PANTS, AVATAR_PANTS_BASE, 'pants', function(){ return avatarPants; }, function(hex){
       avatarPants = hex; localStorage.setItem('dutArenaRbxPants', hex); applyAvatarColors();
     });
   }
