@@ -121,6 +121,20 @@
   }
   .inv-slot.selected{ border-color:#ffd23f; background:rgba(255,210,63,.18); }
   .inv-slot.empty{ opacity:.45; }
+  #stones-hud{
+    position:fixed; top:60px; right:16px; z-index:10;
+    display:flex; gap:6px; background:rgba(20,20,30,.55); border:1px solid rgba(255,255,255,.2);
+    border-radius:10px; padding:7px 9px;
+  }
+  .stone-dot{
+    width:16px; height:16px; border-radius:50%; border:1px solid rgba(255,255,255,.35);
+    box-shadow:0 0 5px rgba(255,255,255,.25);
+  }
+  #cutscene-banner{
+    position:fixed; left:50%; top:30%; transform:translate(-50%,-50%); z-index:20;
+    color:#fff; font-size:22px; font-weight:800; text-align:center; text-shadow:0 2px 12px rgba(0,0,0,.8);
+    pointer-events:none;
+  }
 </style>
 </head>
 <body>
@@ -163,10 +177,13 @@
 <div id="hud">
   <a href="/">⬅️ Düt Arena'ya Dön</a>
   <div id="room-badge" hidden>🎮 <span id="room-code-text"></span></div>
-  <div id="hint">WASD: Hareket • Shift: Koş • Boşluk: Zıpla (2x: Uç/Takla/Süper Zıplama) • E: Etkileşim • 1-4: Eşya Seç • G: Ver • F: Kılıç/Kalkan/Çekiç/Yumruk • L: Lazer • I: Zırh Kuşan</div>
+  <div id="hint">WASD: Hareket • Shift: Koş • Boşluk: Zıpla (2x: Uç/Takla/Süper Zıplama) • E: Etkileşim • 1-4: Eşya Seç • G: Ver • F: Kılıç/Kalkan/Çekiç/Yumruk • L: Lazer • I: Zırh Kuşan • T: Çatırt (6 taş gerekir)</div>
 </div>
 
 <div id="interact-prompt" hidden></div>
+
+<div id="stones-hud" hidden></div>
+<div id="cutscene-banner" hidden></div>
 
 <div id="inventory-bar" hidden></div>
 
@@ -265,16 +282,25 @@
   // Interactable objects — floating markers you can press E near to trigger something
   var interactables = [];
   var INTERACT_RADIUS = 3.2;
-  function addInteractable(x, z, label, onInteract){
+  function addInteractable(x, z, label, onInteract, color, size){
     var marker = new THREE.Mesh(
-      new THREE.OctahedronGeometry(0.45),
-      new THREE.MeshStandardMaterial({ color:0xffd23f, emissive:0x7a5a00, roughness:0.4 })
+      new THREE.OctahedronGeometry(size || 0.45),
+      new THREE.MeshStandardMaterial({ color:color||0xffd23f, emissive:color||0x7a5a00, emissiveIntensity:0.6, roughness:0.4 })
     );
     marker.position.set(x, 1.6, z);
     marker.castShadow = true;
     scene.add(marker);
     mapMeshes.push(marker);
-    interactables.push({ x:x, z:z, label:label, marker:marker, onInteract:onInteract });
+    var entry = { x:x, z:z, label:label, marker:marker, onInteract:onInteract };
+    interactables.push(entry);
+    return entry;
+  }
+  function removeInteractable(entry){
+    var idx = interactables.indexOf(entry);
+    if (idx !== -1) interactables.splice(idx, 1);
+    scene.remove(entry.marker);
+    var mi = mapMeshes.indexOf(entry.marker);
+    if (mi !== -1) mapMeshes.splice(mi, 1);
   }
   function tryInteract(){
     if (!started) return;
@@ -487,6 +513,38 @@
     ada: { label:'🔥 Ateş Yak', msg:'🔥 Kamp ateşini yaktın, topladığın:', item:{emoji:'🪵',name:'Odun'} },
     kahraman: { label:'💪 Güç Topla', msg:'⚡ Bir güç kristali buldun:', item:{emoji:'💎',name:'Güç Kristali'} }
   };
+  // ---- Infinity Stones quest ----
+  var STONES = [
+    { id:'power', name:'Güç Taşı', color:0x9b30ff, worldId:'kahraman', emoji:'🟣' },
+    { id:'space', name:'Uzay Taşı', color:0x2255ff, worldId:'ada', emoji:'🔵' },
+    { id:'reality', name:'Gerçeklik Taşı', color:0xff2222, worldId:'arena', emoji:'🔴' },
+    { id:'soul', name:'Ruh Taşı', color:0xff8800, worldId:'zombi', emoji:'🟠' },
+    { id:'mind', name:'Zihin Taşı', color:0xffd700, worldId:'ajan', emoji:'🟡' },
+    { id:'time', name:'Zaman Taşı', color:0x22cc66, worldId:'sehir', emoji:'🟢' }
+  ];
+  var collectedStones = [];
+  try { collectedStones = JSON.parse(localStorage.getItem('dutArenaRbxStones') || '[]'); } catch(e){ collectedStones = []; }
+  var hasGauntlet = localStorage.getItem('dutArenaRbxGauntlet') === '1';
+  var stonesHud = document.getElementById('stones-hud');
+  function renderStonesHud(){
+    stonesHud.innerHTML = '';
+    STONES.forEach(function(s){
+      var dot = document.createElement('div');
+      dot.className = 'stone-dot';
+      dot.title = s.name;
+      dot.style.background = collectedStones.indexOf(s.id) !== -1 ? '#' + s.color.toString(16).padStart(6,'0') : 'rgba(255,255,255,.12)';
+      stonesHud.appendChild(dot);
+    });
+  }
+  function collectStone(stone){
+    if (collectedStones.indexOf(stone.id) !== -1) return;
+    collectedStones.push(stone.id);
+    localStorage.setItem('dutArenaRbxStones', JSON.stringify(collectedStones));
+    renderStonesHud();
+    appendChat('Sistem', stone.emoji + ' ' + stone.name + '\'nı ele geçirdin! (' + collectedStones.length + '/6)');
+    if (collectedStones.length === 6 && !hasGauntlet) startGauntletCutscene();
+  }
+
   function loadMap(mapId){
     mapMeshes.forEach(function(m){ scene.remove(m); });
     mapMeshes = [];
@@ -502,6 +560,13 @@
         appendChat('Sistem', flavor.msg);
       }
     });
+    var stone = STONES.filter(function(s){ return s.worldId === mapId; })[0];
+    if (stone && collectedStones.indexOf(stone.id) === -1){
+      var shrineEntry = addInteractable(0, 6, stone.emoji + ' ' + stone.name, function(){
+        collectStone(stone);
+        removeInteractable(shrineEntry);
+      }, stone.color, 0.6);
+    }
   }
   loadMap('classic');
 
@@ -815,6 +880,9 @@
         document.getElementById('start-screen').style.display = 'none';
         document.getElementById('chat-panel').hidden = false;
         document.getElementById('inventory-bar').hidden = false;
+        document.getElementById('stones-hud').hidden = false;
+        renderStonesHud();
+        if (hasGauntlet) applyGauntletLook();
         started = true;
       } else if (msg.type === 'rbx-player-joined'){
         addRemotePlayer(msg);
@@ -840,6 +908,7 @@
         else if (msg.action === 'flip' && !rpA.flipping){ rpA.flipping = true; rpA.flipT = 0; }
         else if (msg.action === 'weapon-throw' && !rpA.attacking){ rpA.attacking = true; rpA.attackT = 0; }
         else if (msg.action === 'pound'){ spawnShockwave(rpA.group.position); }
+        else if (msg.action === 'snap'){ spawnSnapEffect(rpA.group.position, rpA.group.rotation.y); }
       }
     });
     ws.addEventListener('close', function(){ setTimeout(connectWs, 1500); });
@@ -1075,17 +1144,16 @@
   window.addEventListener('keydown', function(e){
     if (isTypingTarget(e)) return;
     keys[e.code] = true;
-    if (e.code === 'Space'){
-      e.preventDefault();
-      if (!e.repeat){
-        var now = performance.now();
-        if (now - lastSpaceTapTime < 350){
-          if (selectedHero === 'captain') doFlip();
-          else if (selectedHero === 'hulk') superJump();
-          else toggleFly();
-        }
-        lastSpaceTapTime = now;
+    if (e.code === 'Space') e.preventDefault();
+    if (inCutscene) return;
+    if (e.code === 'Space' && !e.repeat){
+      var now = performance.now();
+      if (now - lastSpaceTapTime < 350){
+        if (selectedHero === 'captain') doFlip();
+        else if (selectedHero === 'hulk') superJump();
+        else toggleFly();
       }
+      lastSpaceTapTime = now;
     }
     if (e.repeat) return;
     if (e.code === 'KeyE') tryInteract();
@@ -1097,6 +1165,7 @@
     }
     if (e.code === 'KeyL') fireLaser();
     if (e.code === 'KeyI') toggleArmor();
+    if (e.code === 'KeyT') doSnap();
     if (e.code === 'Digit1') selectSlot(0);
     if (e.code === 'Digit2') selectSlot(1);
     if (e.code === 'Digit3') selectSlot(2);
@@ -1310,6 +1379,83 @@
       }
     });
   }
+  // ---- Infinity Gauntlet cutscene + Snap ----
+  var inCutscene = false;
+  var cutsceneT = 0;
+  var CUTSCENE_DURATION = 3.5;
+  var cutsceneStones = []; // { mesh, from, to }
+  var gauntletDecor = null;
+  var snapFx = [];
+
+  function buildGauntletDecor(){
+    var g = new THREE.Group();
+    var glove = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.35, 0.5), new THREE.MeshStandardMaterial({ color:0xd4af37, metalness:0.7, roughness:0.3 }));
+    g.add(glove);
+    var gemLocal = [[-0.18,0.08,0.26],[-0.09,0.13,0.26],[0,0.15,0.26],[0.09,0.13,0.26],[0.18,0.08,0.26],[0,0.03,0.3]];
+    STONES.forEach(function(s, i){
+      var gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.07), new THREE.MeshStandardMaterial({ color:s.color, emissive:s.color, emissiveIntensity:0.7 }));
+      gem.position.set(gemLocal[i][0], gemLocal[i][1], gemLocal[i][2]);
+      g.add(gem);
+    });
+    return g;
+  }
+  function applyGauntletLook(){
+    if (gauntletDecor) return;
+    gauntletDecor = buildGauntletDecor();
+    gauntletDecor.position.set(0.25, -2.0, 0.1);
+    rightArm.add(gauntletDecor);
+  }
+
+  function startGauntletCutscene(){
+    inCutscene = true;
+    cutsceneT = 0;
+    isFlying = true;
+    velocityY = 0;
+    var banner = document.getElementById('cutscene-banner');
+    banner.textContent = '🌌 Sonsuzluk Eldiveni birleşiyor...';
+    banner.hidden = false;
+    cutsceneStones = STONES.map(function(s, i){
+      var a = (i / STONES.length) * Math.PI * 2;
+      var mesh = new THREE.Mesh(
+        new THREE.OctahedronGeometry(0.35),
+        new THREE.MeshStandardMaterial({ color:s.color, emissive:s.color, emissiveIntensity:0.8 })
+      );
+      var from = new THREE.Vector3(Math.cos(a)*5, 4 + Math.sin(i)*1.5, Math.sin(a)*5);
+      mesh.position.copy(character.position).add(from);
+      scene.add(mesh);
+      return { mesh:mesh, fromOffset:from };
+    });
+  }
+
+  function finishGauntletCutscene(){
+    inCutscene = false;
+    isFlying = false;
+    hasGauntlet = true;
+    localStorage.setItem('dutArenaRbxGauntlet', '1');
+    applyGauntletLook();
+    cutsceneStones.forEach(function(cs){ scene.remove(cs.mesh); });
+    cutsceneStones = [];
+    document.getElementById('cutscene-banner').hidden = true;
+    appendChat('Sistem', '🌌 Sonsuzluk Eldiveni tamamlandı! Artık Çatırt yeteneğin var (T tuşu).');
+  }
+
+  function spawnSnapEffect(pos, rotY){
+    var handPos = pos.clone().add(new THREE.Vector3(1.3, 3.0, 0).applyAxisAngle(new THREE.Vector3(0,1,0), rotY));
+    for (var i = 0; i < 24; i++){
+      var dir = new THREE.Vector3((Math.random()-0.5), (Math.random()-0.5), (Math.random()-0.5)).normalize();
+      var p = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 6), new THREE.MeshBasicMaterial({ color:0xffd23f, transparent:true, opacity:0.9 }));
+      p.position.copy(handPos);
+      scene.add(p);
+      snapFx.push({ mesh:p, dir:dir, t:0 });
+    }
+  }
+  function doSnap(){
+    if (!started || !hasGauntlet) return;
+    spawnSnapEffect(character.position, character.rotation.y);
+    appendChat('Sistem', '💥 Çatırttın!');
+    sendOrQueue({ type:'rbx-action', action:'snap' });
+  }
+
   var charFacing = 0; // radians
   var moving = false;
   var walkT = 0;
@@ -1357,7 +1503,7 @@
     var fwd = new THREE.Vector3(-Math.sin(camYaw), 0, -Math.cos(camYaw));
     var right = new THREE.Vector3(Math.sin(camYaw + Math.PI/2), 0, Math.cos(camYaw + Math.PI/2));
     var move = new THREE.Vector3();
-    if (started){
+    if (started && !inCutscene){
       if (keys['KeyW'] || keys['ArrowUp']) move.add(fwd);
       if (keys['KeyS'] || keys['ArrowDown']) move.sub(fwd);
       if (keys['KeyD'] || keys['ArrowRight']) move.add(right);
@@ -1389,15 +1535,16 @@
     // jump / gravity / flight
     if (isFlying){
       var VSPEED = 11;
-      if (keys['Space']) character.position.y += VSPEED * dt;
-      if (keys['ControlLeft'] || keys['ControlRight']) character.position.y -= VSPEED * dt;
+      if (inCutscene) character.position.y += 3.5 * dt;
+      else if (keys['Space']) character.position.y += VSPEED * dt;
+      if (!inCutscene && (keys['ControlLeft'] || keys['ControlRight'])) character.position.y -= VSPEED * dt;
       flyBobT += dt;
       character.position.y += Math.sin(flyBobT * 3) * 0.012;
       if (character.position.y < 1.2) character.position.y = 1.2;
       velocityY = 0;
       isGrounded = false;
     } else {
-      if (started && keys['Space'] && isGrounded){
+      if (started && !inCutscene && keys['Space'] && isGrounded){
         velocityY = JUMP_SPEED;
         isGrounded = false;
       }
@@ -1494,6 +1641,27 @@
     });
     for (var si2 = shockwaves.length - 1; si2 >= 0; si2--){
       if (shockwaves[si2].t > 0.5){ scene.remove(shockwaves[si2].mesh); shockwaves.splice(si2, 1); }
+    }
+    snapFx.forEach(function(p){
+      p.t += dt;
+      p.mesh.position.addScaledVector(p.dir, dt * 9);
+      p.mesh.material.opacity = Math.max(0, 0.9 - p.t * 1.2);
+    });
+    for (var pi = snapFx.length - 1; pi >= 0; pi--){
+      if (snapFx[pi].t > 0.75){ scene.remove(snapFx[pi].mesh); snapFx.splice(pi, 1); }
+    }
+    if (inCutscene){
+      cutsceneT += dt;
+      var cp = Math.min(1, cutsceneT / CUTSCENE_DURATION);
+      var eased2 = 1 - Math.pow(1 - cp, 3);
+      var gauntletTarget = new THREE.Vector3(0.25, -2.0, 0.1).applyAxisAngle(new THREE.Vector3(0,1,0), character.rotation.y);
+      cutsceneStones.forEach(function(cs){
+        var startPos = character.position.clone().add(cs.fromOffset);
+        var endPos = character.position.clone().add(gauntletTarget);
+        cs.mesh.position.lerpVectors(startPos, endPos, eased2);
+        cs.mesh.rotation.y += dt * 4;
+      });
+      if (cp >= 1) finishGauntletCutscene();
     }
     if (armorAnimating){
       armorAnimT += dt;
