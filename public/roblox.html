@@ -102,6 +102,15 @@
     background:rgba(20,20,30,.65); border:1px solid rgba(255,255,255,.2);
     border-radius:10px; padding:8px 14px;
   }
+  #photo-btn{
+    pointer-events:auto; font-size:18px; background:rgba(20,20,30,.65);
+    border:1px solid rgba(255,255,255,.2); border-radius:10px; padding:7px 12px; cursor:pointer;
+  }
+  #photo-btn:hover{ background:rgba(40,40,55,.85); }
+  #photo-flash{
+    position:fixed; inset:0; z-index:30; background:#fff; opacity:0; pointer-events:none;
+  }
+  #photo-flash.flash{ opacity:1; transition:opacity .4s ease; }
   #chat-panel{
     position:fixed; left:16px; bottom:16px; z-index:10; width:280px;
     display:flex; flex-direction:column; gap:6px;
@@ -231,8 +240,10 @@
 <div id="hud">
   <a href="/">⬅️ Düt Arena'ya Dön</a>
   <div id="room-badge" hidden>🎮 <span id="room-code-text"></span></div>
-  <div id="hint">WASD: Hareket • Shift: Koş • Boşluk: Zıpla (2x: Uç/Takla/Süper Zıplama) • E: Etkileşim • 1-4: Eşya Seç • G: Ver • F: Kılıç/Kalkan/Çekiç/Yumruk/Portal • L: Lazer • I: Zırh Kuşan • T: Çatırt • N: Eldiven Animasyonu (6 taş gerekir)</div>
+  <button type="button" id="photo-btn" hidden title="Anı Yakala (P)">📸</button>
+  <div id="hint">WASD: Hareket • Shift: Koş • Boşluk: Zıpla (2x: Uç/Takla/Süper Zıplama) • E: Etkileşim • 1-4: Eşya Seç • G: Ver • F: Kılıç/Kalkan/Çekiç/Yumruk/Portal • L: Lazer • I: Zırh Kuşan • T: Çatırt • N: Eldiven Animasyonu • P: Anı Yakala (6 taş gerekir)</div>
 </div>
+<div id="photo-flash" hidden></div>
 
 <div id="interact-prompt" hidden></div>
 
@@ -281,7 +292,7 @@
 
   var camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 500);
 
-  var renderer = new THREE.WebGLRenderer({ antialias:true });
+  var renderer = new THREE.WebGLRenderer({ antialias:true, preserveDrawingBuffer:true });
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.shadowMap.enabled = true;
@@ -988,6 +999,7 @@
         document.getElementById('stones-hud').hidden = false;
         document.getElementById('touch-joystick').hidden = false;
         document.getElementById('touch-actions').hidden = false;
+        document.getElementById('photo-btn').hidden = false;
         renderStonesHud();
         if (hasGauntlet) applyGauntletLook();
         started = true;
@@ -1270,6 +1282,7 @@
   document.getElementById('achv-close-btn').addEventListener('click', function(){
     document.getElementById('achv-screen').classList.remove('open');
   });
+  document.getElementById('photo-btn').addEventListener('click', function(){ capturePhoto(); });
 
   // ---- Movement state ----
   var keys = {};
@@ -1300,6 +1313,7 @@
     if (e.code === 'KeyI') toggleArmor();
     if (e.code === 'KeyT') doSnap();
     if (e.code === 'KeyN') replayGauntletCutscene();
+    if (e.code === 'KeyP') capturePhoto();
     if (e.code === 'Digit1') selectSlot(0);
     if (e.code === 'Digit2') selectSlot(1);
     if (e.code === 'Digit3') selectSlot(2);
@@ -1686,6 +1700,45 @@
   function replayGauntletCutscene(){
     if (!started || !hasGauntlet || inCutscene) return;
     startGauntletCutscene();
+  }
+
+  function capturePhoto(){
+    if (!started) return;
+    var src = renderer.domElement;
+    var out = document.createElement('canvas');
+    out.width = src.width;
+    out.height = src.height;
+    var ctx = out.getContext('2d');
+    ctx.drawImage(src, 0, 0);
+    var barH = Math.round(out.height * 0.12);
+    var grad = ctx.createLinearGradient(0, out.height - barH, 0, out.height);
+    grad.addColorStop(0, 'rgba(10,10,18,0)');
+    grad.addColorStop(1, 'rgba(10,10,18,0.85)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, out.height - barH, out.width, barH);
+    var scale = out.width / 1280;
+    var worldTitle = document.getElementById('room-code-text').textContent || 'Roblox Dünyası';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold ' + Math.round(26 * scale) + 'px system-ui, sans-serif';
+    ctx.fillText('🎮 Düt Arena — ' + worldTitle, 24 * scale, out.height - 18 * scale);
+    ctx.fillStyle = '#ffd23f';
+    ctx.font = Math.round(16 * scale) + 'px system-ui, sans-serif';
+    ctx.fillText(sessionName, 24 * scale, out.height - 44 * scale);
+
+    var flash = document.getElementById('photo-flash');
+    flash.hidden = false;
+    flash.classList.add('flash');
+    setTimeout(function(){
+      flash.classList.remove('flash');
+      setTimeout(function(){ flash.hidden = true; }, 400);
+    }, 60);
+
+    var link = document.createElement('a');
+    link.download = 'dut-arena-' + Date.now() + '.png';
+    link.href = out.toDataURL('image/png');
+    link.click();
+    appendChat('Sistem', '📸 Anı yakalandı ve indirildi!');
   }
 
   function finishGauntletCutscene(){
