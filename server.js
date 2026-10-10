@@ -769,6 +769,21 @@ wss.on('connection', (ws, req) => {
       return;
     }
 
+    if (msg.type === 'rbx-give') {
+      const code = ws.rbxRoom;
+      const room = code && rbxRooms.get(code);
+      const giverInfo = room && room.players.get(ws);
+      if (!room || !giverInfo || !msg.item) return;
+      const toId = Number(msg.toId);
+      let targetWs = null;
+      room.players.forEach((info, clientWs) => { if (info.id === toId) targetWs = clientWs; });
+      if (targetWs && targetWs.readyState === WebSocket.OPEN) {
+        const item = { emoji: String(msg.item.emoji || '🎁').slice(0, 8), name: String(msg.item.name || 'Eşya').slice(0, 20) };
+        targetWs.send(JSON.stringify({ type: 'rbx-item-received', fromId: id, fromName: giverInfo.name, item }));
+      }
+      return;
+    }
+
     if (msg.type === 'list-rooms') {
       ws.send(JSON.stringify({ type: 'room-list', rooms: roomListPayload() }));
       return;

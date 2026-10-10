@@ -110,6 +110,17 @@
     color:#fff; font-size:14px; font-weight:700; background:rgba(20,20,30,.75);
     border:1px solid rgba(255,255,255,.25); border-radius:10px; padding:8px 16px;
   }
+  #inventory-bar{
+    position:fixed; left:50%; bottom:16px; transform:translateX(-50%); z-index:10;
+    display:flex; gap:8px;
+  }
+  .inv-slot{
+    width:54px; height:54px; border-radius:10px; cursor:pointer;
+    background:rgba(20,20,30,.65); border:2px solid rgba(255,255,255,.2);
+    display:flex; align-items:center; justify-content:center; font-size:26px;
+  }
+  .inv-slot.selected{ border-color:#ffd23f; background:rgba(255,210,63,.18); }
+  .inv-slot.empty{ opacity:.45; }
 </style>
 </head>
 <body>
@@ -144,10 +155,12 @@
 <div id="hud">
   <a href="/">⬅️ Düt Arena'ya Dön</a>
   <div id="room-badge" hidden>🎮 <span id="room-code-text"></span></div>
-  <div id="hint">WASD: Hareket • Shift: Koş • Boşluk: Zıpla • Fare: Kamera</div>
+  <div id="hint">WASD: Hareket • Shift: Koş • Boşluk: Zıpla • E: Etkileşim • G: Ver • Fare: Kamera</div>
 </div>
 
 <div id="interact-prompt" hidden></div>
+
+<div id="inventory-bar" hidden></div>
 
 <div id="chat-panel" hidden>
   <div id="chat-log"></div>
@@ -374,14 +387,14 @@
   };
 
   var INTERACT_FLAVORS = {
-    ciftlik: { label:'🌾 Hayvanları Besle', msg:'🐾 Hayvanları besledin!' },
-    restoran: { label:'🍳 Sipariş Hazırla', msg:'🍔 Bir sipariş hazırladın!' },
-    ajan: { label:'🔍 İpucu Ara', msg:'🕵️ Bir ipucu buldun!' },
-    sehir: { label:'🏗️ İnşa Et', msg:'🏙️ Yeni bir bina inşa ettin!' },
-    balik: { label:'🎣 Olta At', msg:'🐟 Bir balık yakaladın!' },
-    zombi: { label:'🔧 Barikat Kur', msg:'🧟 Barikatı sağlamlaştırdın!' },
-    basketbol: { label:'🏀 Şut At', msg:'🏀 Potayı buldun!' },
-    ada: { label:'🔥 Ateş Yak', msg:'🔥 Kamp ateşini yaktın!' }
+    ciftlik: { label:'🌾 Hayvanları Besle', msg:'🐾 Hayvanları besledin ve bir', item:{emoji:'🥚',name:'Yumurta'} },
+    restoran: { label:'🍳 Sipariş Hazırla', msg:'🍔 Bir sipariş hazırladın:', item:{emoji:'🍔',name:'Hamburger'} },
+    ajan: { label:'🔍 İpucu Ara', msg:'🕵️ Bir ipucu buldun:', item:{emoji:'🔑',name:'İpucu'} },
+    sehir: { label:'🏗️ İnşa Et', msg:'🏙️ Topladığın malzeme:', item:{emoji:'🧱',name:'Tuğla'} },
+    balik: { label:'🎣 Olta At', msg:'🐟 Bir balık yakaladın:', item:{emoji:'🐟',name:'Balık'} },
+    zombi: { label:'🔧 Barikat Kur', msg:'🧟 Barikatı sağlamlaştırdın, elinde:', item:{emoji:'🔧',name:'Alet'} },
+    basketbol: { label:'🏀 Şut At', msg:'🏀 Potayı buldun!', item:null },
+    ada: { label:'🔥 Ateş Yak', msg:'🔥 Kamp ateşini yaktın, topladığın:', item:{emoji:'🪵',name:'Odun'} }
   };
   function loadMap(mapId){
     mapMeshes.forEach(function(m){ scene.remove(m); });
@@ -389,8 +402,15 @@
     solidBlocks = [];
     interactables.length = 0;
     (MAP_THEMES[mapId] || MAP_THEMES.classic)();
-    var flavor = INTERACT_FLAVORS[mapId] || { label:'🎁 Sandığı Aç', msg:'🎁 Sandıktan bir ödül çıktı!' };
-    addInteractable(0, -3, flavor.label, function(){ appendChat('Sistem', flavor.msg); });
+    var flavor = INTERACT_FLAVORS[mapId] || { label:'🎁 Sandığı Aç', msg:'🎁 Sandıktan çıkan:', item:{emoji:'🎁',name:'Hediye'} };
+    addInteractable(0, -3, flavor.label, function(){
+      if (flavor.item){
+        if (addToInventory(flavor.item)) appendChat('Sistem', flavor.msg + ' ' + flavor.item.emoji + ' ' + flavor.item.name);
+        else appendChat('Sistem', 'Envanterin dolu! Önce bir eşya ver veya kullan.');
+      } else {
+        appendChat('Sistem', flavor.msg);
+      }
+    });
   }
   loadMap('classic');
 
@@ -569,6 +589,7 @@
         document.getElementById('room-badge').hidden = false;
         document.getElementById('start-screen').style.display = 'none';
         document.getElementById('chat-panel').hidden = false;
+        document.getElementById('inventory-bar').hidden = false;
         started = true;
       } else if (msg.type === 'rbx-player-joined'){
         addRemotePlayer(msg);
@@ -580,6 +601,10 @@
         if (rp) rp.target = { x:msg.x, y:msg.y, z:msg.z, ry:msg.ry };
       } else if (msg.type === 'rbx-chat'){
         appendChat(msg.name || 'Oyuncu', msg.text);
+      } else if (msg.type === 'rbx-item-received'){
+        var item = msg.item || { emoji:'🎁', name:'Eşya' };
+        if (addToInventory(item)) appendChat('Sistem', (msg.fromName||'Biri') + ' sana bir ' + item.name + ' verdi! ' + item.emoji);
+        else appendChat('Sistem', (msg.fromName||'Biri') + ' sana bir ' + item.name + ' vermek istedi ama envanterin dolu.');
       }
     });
     ws.addEventListener('close', function(){ setTimeout(connectWs, 1500); });
@@ -596,6 +621,56 @@
       ws.send(JSON.stringify({ type:'rbx-pos', x:character.position.x, y:character.position.y, z:character.position.z, ry:charFacing }));
     }
   }, 100);
+
+  // ---- Inventory (4 slots) ----
+  var inventory = [null, null, null, null];
+  var selectedSlot = -1;
+  var invBar = document.getElementById('inventory-bar');
+  for (var si = 0; si < 4; si++){
+    (function(slotIndex){
+      var el = document.createElement('div');
+      el.className = 'inv-slot empty';
+      invBar.appendChild(el);
+      el.addEventListener('click', function(){
+        if (!inventory[slotIndex]) return;
+        selectedSlot = (selectedSlot === slotIndex) ? -1 : slotIndex;
+        renderInventory();
+      });
+    })(si);
+  }
+  function renderInventory(){
+    var slots = invBar.children;
+    for (var i = 0; i < 4; i++){
+      var item = inventory[i];
+      slots[i].textContent = item ? item.emoji : '';
+      slots[i].classList.toggle('empty', !item);
+      slots[i].classList.toggle('selected', i === selectedSlot);
+    }
+  }
+  function addToInventory(item){
+    for (var i = 0; i < 4; i++){
+      if (!inventory[i]){ inventory[i] = item; renderInventory(); return true; }
+    }
+    return false;
+  }
+  function tryGive(){
+    if (!started || selectedSlot < 0 || !inventory[selectedSlot]) return;
+    var GIVE_RADIUS = 4;
+    var nearestId = null, nearestDist = GIVE_RADIUS * GIVE_RADIUS;
+    Object.keys(remotePlayers).forEach(function(rid){
+      var rp = remotePlayers[rid];
+      var dx = character.position.x - rp.group.position.x, dz = character.position.z - rp.group.position.z;
+      var d2 = dx*dx + dz*dz;
+      if (d2 <= nearestDist){ nearestDist = d2; nearestId = rid; }
+    });
+    if (nearestId === null){ appendChat('Sistem', 'Vermek için yakında birisi olmalı.'); return; }
+    var item = inventory[selectedSlot];
+    inventory[selectedSlot] = null;
+    selectedSlot = -1;
+    renderInventory();
+    sendOrQueue({ type:'rbx-give', toId:Number(nearestId), item:item });
+    appendChat('Sistem', 'Birine bir ' + item.name + ' verdin! ' + item.emoji);
+  }
 
   function appendChat(name, text){
     var log = document.getElementById('chat-log');
@@ -708,6 +783,7 @@
     keys[e.code] = true;
     if (e.code === 'Space') e.preventDefault();
     if (e.code === 'KeyE') tryInteract();
+    if (e.code === 'KeyG') tryGive();
   });
   window.addEventListener('keyup', function(e){
     if (isTypingTarget(e)) return;
