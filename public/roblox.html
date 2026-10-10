@@ -30,11 +30,35 @@
     position:fixed; inset:0; z-index:20; display:flex; align-items:center; justify-content:center;
     background:#0d0d14; color:#fff; font-size:18px; flex-direction:column; gap:10px;
   }
+  #start-screen{
+    position:fixed; inset:0; z-index:15; display:flex; align-items:center; justify-content:center;
+    background:rgba(8,8,16,.72);
+  }
+  .start-card{
+    background:rgba(22,22,34,.95); border:1px solid rgba(255,255,255,.15);
+    border-radius:16px; padding:28px 32px; text-align:center; color:#fff;
+    max-width:360px; box-shadow:0 10px 40px rgba(0,0,0,.5);
+  }
+  .start-card h1{ margin:0 0 10px; font-size:24px; }
+  .start-card p{ margin:0 0 20px; font-size:14px; color:#cfcfe0; line-height:1.5; }
+  #play-btn{
+    font-size:17px; font-weight:700; color:#fff; background:#2e9e4a;
+    border:none; border-radius:10px; padding:12px 28px; cursor:pointer;
+  }
+  #play-btn:hover{ background:#36b357; }
 </style>
 </head>
 <body>
 
 <div id="loading">🧱 Yükleniyor…</div>
+
+<div id="start-screen">
+  <div class="start-card">
+    <h1>🎮 Roblox Dünyası</h1>
+    <p>WASD ile hareket et, boşlukla zıpla, fareyle sürükleyerek kamerayı döndür.</p>
+    <button id="play-btn" type="button">▶️ Oyna</button>
+  </div>
+</div>
 
 <div id="hud">
   <a href="/">⬅️ Düt Arena'ya Dön</a>
@@ -166,6 +190,44 @@
   rightLeg.position.set(0.5, 2, 0);
   character.add(rightLeg);
 
+  // ---- Nametag (billboard above the head, shows the logged-in session name) ----
+  function roundRect(ctx,x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+  }
+  function makeNameTexture(text){
+    var canvas = document.createElement('canvas');
+    canvas.width = 256; canvas.height = 64;
+    var ctx = canvas.getContext('2d');
+    ctx.font = 'bold 30px system-ui, sans-serif';
+    var textWidth = ctx.measureText(text).width;
+    var boxW = Math.min(246, textWidth + 36);
+    var boxX = (256 - boxW)/2;
+    ctx.fillStyle = 'rgba(10,10,18,0.6)';
+    roundRect(ctx, boxX, 12, boxW, 40, 10); ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, 128, 33);
+    return new THREE.CanvasTexture(canvas);
+  }
+  var nameSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeNameTexture('Misafir'), transparent:true, depthTest:false }));
+  nameSprite.scale.set(2.2, 0.55, 1);
+  nameSprite.position.set(0, 5.7, 0);
+  character.add(nameSprite);
+
+  fetch('/api/me').then(function(r){ return r.json(); }).then(function(info){
+    var name = (info && info.loggedIn && info.name) ? info.name : 'Misafir';
+    nameSprite.material.map.dispose();
+    nameSprite.material.map = makeNameTexture(name);
+    nameSprite.material.needsUpdate = true;
+  }).catch(function(){ /* stay as Misafir */ });
+
   // ---- Movement state ----
   var keys = {};
   window.addEventListener('keydown', function(e){
@@ -177,8 +239,9 @@
   var velocityY = 0;
   var isGrounded = true;
   var GRAVITY = -32;
-  var JUMP_SPEED = 11;
+  var JUMP_SPEED = 14;
   var MOVE_SPEED = 12;
+  var started = false;
   var charFacing = 0; // radians
   var moving = false;
   var walkT = 0;
@@ -226,10 +289,12 @@
     var fwd = new THREE.Vector3(-Math.sin(camYaw), 0, -Math.cos(camYaw));
     var right = new THREE.Vector3(Math.sin(camYaw + Math.PI/2), 0, Math.cos(camYaw + Math.PI/2));
     var move = new THREE.Vector3();
-    if (keys['KeyW'] || keys['ArrowUp']) move.add(fwd);
-    if (keys['KeyS'] || keys['ArrowDown']) move.sub(fwd);
-    if (keys['KeyD'] || keys['ArrowRight']) move.add(right);
-    if (keys['KeyA'] || keys['ArrowLeft']) move.sub(right);
+    if (started){
+      if (keys['KeyW'] || keys['ArrowUp']) move.add(fwd);
+      if (keys['KeyS'] || keys['ArrowDown']) move.sub(fwd);
+      if (keys['KeyD'] || keys['ArrowRight']) move.add(right);
+      if (keys['KeyA'] || keys['ArrowLeft']) move.sub(right);
+    }
 
     moving = move.lengthSq() > 0.0001;
     if (moving){
@@ -250,7 +315,7 @@
     }
 
     // jump / gravity
-    if ((keys['Space']) && isGrounded){
+    if (started && keys['Space'] && isGrounded){
       velocityY = JUMP_SPEED;
       isGrounded = false;
     }
@@ -298,6 +363,13 @@
 
   var loadingEl = document.getElementById('loading');
   if (loadingEl) loadingEl.style.display = 'none';
+
+  document.getElementById('play-btn').addEventListener('click', function(){
+    started = true;
+    document.getElementById('start-screen').style.display = 'none';
+    renderer.domElement.focus();
+  });
+
   animate();
 })();
 </script>
