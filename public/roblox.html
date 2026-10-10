@@ -95,8 +95,9 @@
   }
   .game-tile .rating{ font-size:11px; color:#9aa0b0; }
   .swatch-row{ display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; justify-content:center; }
-  .swatch{ width:34px; height:34px; border-radius:8px; cursor:pointer; border:3px solid transparent; }
+  .swatch{ width:34px; height:34px; border-radius:8px; cursor:pointer; border:3px solid transparent; display:flex; align-items:center; justify-content:center; font-size:14px; }
   .swatch.selected{ border-color:#fff; }
+  .swatch.locked-swatch{ cursor:default; opacity:.7; }
   #room-badge{
     pointer-events:none; color:#fff; font-size:13px; font-weight:700;
     background:rgba(20,20,30,.65); border:1px solid rgba(255,255,255,.2);
@@ -661,6 +662,8 @@
     if (collectedStones.length === 6 && !hasGauntlet) startGauntletCutscene();
   }
 
+  var MARKET_COLOR = 0x2ecc9a;
+
   function loadMap(mapId){
     mapMeshes.forEach(function(m){ scene.remove(m); });
     mapMeshes = [];
@@ -668,14 +671,14 @@
     interactables.length = 0;
     (MAP_THEMES[mapId] || MAP_THEMES.classic)();
     var flavor = INTERACT_FLAVORS[mapId] || { label:'🎁 Sandığı Aç', msg:'🎁 Sandıktan çıkan:', item:{emoji:'🎁',name:'Hediye'} };
-    addInteractable(0, -3, flavor.label, function(){
+    addInteractable(0, -3, '🏪 ' + flavor.label, function(){
       if (flavor.item){
         if (addToInventory(flavor.item)) appendChat('Sistem', flavor.msg + ' ' + flavor.item.emoji + ' ' + flavor.item.name);
-        else appendChat('Sistem', 'Envanterin dolu! Önce bir eşya ver veya kullan.');
+        else sellItemForColor();
       } else {
         appendChat('Sistem', flavor.msg);
       }
-    });
+    }, MARKET_COLOR);
     var stone = STONES.filter(function(s){ return s.worldId === mapId; })[0];
     if (stone && collectedStones.indexOf(stone.id) === -1){
       var shrineEntry = addInteractable(0, 6, stone.emoji + ' ' + stone.name, function(){
@@ -688,8 +691,27 @@
 
   // ---- Roblox-style blocky character (R6-ish) ----
   var SKIN = 0xf5cd6a;
-  var AVATAR_SHIRTS = ['#1e5fa8','#c0392b','#27ae60','#8e44ad','#f39c12','#16a085','#e84393','#2c3e50'];
-  var AVATAR_PANTS = ['#2e9e4a','#2c3e50','#7f8c8d','#8e5a2b','#34495e','#c0392b','#16a085','#34304a'];
+  var AVATAR_SHIRTS_BASE = ['#1e5fa8','#c0392b','#27ae60','#8e44ad','#f39c12','#16a085','#e84393','#2c3e50'];
+  var AVATAR_PANTS_BASE = ['#2e9e4a','#2c3e50','#7f8c8d','#8e5a2b','#34495e','#c0392b','#16a085','#34304a'];
+  var AVATAR_SHIRTS_LOCKED = ['#ff2e63','#00e0d3','#ffb700','#7b2ff7','#0fff50','#ff6b00','#1affd5','#ff00a0'];
+  var AVATAR_PANTS_LOCKED = ['#4d2e9e','#008080','#a0522d','#1f3a5f','#5a0f0f','#2f4f2f','#3a0ca3','#ff7a00'];
+  var AVATAR_SHIRTS = AVATAR_SHIRTS_BASE.concat(AVATAR_SHIRTS_LOCKED);
+  var AVATAR_PANTS = AVATAR_PANTS_BASE.concat(AVATAR_PANTS_LOCKED);
+  var unlockedColors = [];
+  try { unlockedColors = JSON.parse(localStorage.getItem('dutArenaRbxUnlockedColors') || '[]'); } catch(e){ unlockedColors = []; }
+  function isColorUnlocked(hex, base){
+    return base.indexOf(hex) !== -1 || unlockedColors.indexOf(hex) !== -1;
+  }
+  function unlockRandomColor(){
+    var pool = [];
+    AVATAR_SHIRTS_LOCKED.forEach(function(c){ if (unlockedColors.indexOf(c) === -1) pool.push({ hex:c, kind:'shirt' }); });
+    AVATAR_PANTS_LOCKED.forEach(function(c){ if (unlockedColors.indexOf(c) === -1) pool.push({ hex:c, kind:'pants' }); });
+    if (!pool.length) return null;
+    var pick = pool[Math.floor(Math.random() * pool.length)];
+    unlockedColors.push(pick.hex);
+    localStorage.setItem('dutArenaRbxUnlockedColors', JSON.stringify(unlockedColors));
+    return pick;
+  }
   var avatarShirt = localStorage.getItem('dutArenaRbxShirt') || AVATAR_SHIRTS[0];
   var avatarPants = localStorage.getItem('dutArenaRbxPants') || AVATAR_PANTS[0];
   var SHIRT = avatarShirt;
@@ -1092,6 +1114,28 @@
     }
     return false;
   }
+  function sellItemForColor(){
+    var filled = [];
+    for (var i = 0; i < 4; i++){ if (inventory[i]) filled.push(i); }
+    if (!filled.length){
+      appendChat('Sistem', '🏪 Envanterin dolu ama satacak eşyan yok! Önce bir eşya topla.');
+      return;
+    }
+    var slot = filled[Math.floor(Math.random() * filled.length)];
+    var sold = inventory[slot];
+    var unlock = unlockRandomColor();
+    if (!unlock){
+      appendChat('Sistem', '🏪 Tüm renkleri zaten açtın, satacak bir şey kalmadı!');
+      return;
+    }
+    inventory[slot] = null;
+    if (selectedSlot === slot) selectedSlot = -1;
+    renderInventory();
+    if (typeof renderShirtSwatches === 'function') renderShirtSwatches();
+    if (typeof renderPantsSwatches === 'function') renderPantsSwatches();
+    appendChat('Sistem', '🏪 ' + sold.emoji + ' ' + sold.name + '\'ni pazara sattın, yeni bir ' +
+      (unlock.kind === 'shirt' ? 'gömlek' : 'pantolon') + ' rengi kazandın!');
+  }
   function tryGive(){
     if (!started || selectedSlot < 0 || !inventory[selectedSlot]) return;
     var GIVE_RADIUS = 4;
@@ -1236,27 +1280,42 @@
     leftLeg.children[0].material.color.set(avatarPants);
     rightLeg.children[0].material.color.set(avatarPants);
   }
-  function buildSwatches(containerId, palette, current, onPick){
+  function buildSwatches(containerId, palette, base, getCurrent, onPick){
     var el = document.getElementById(containerId);
+    el.innerHTML = '';
     palette.forEach(function(hex){
+      var unlocked = isColorUnlocked(hex, base);
       var sw = document.createElement('div');
-      sw.className = 'swatch' + (hex === current ? ' selected' : '');
-      sw.style.background = hex;
-      sw.addEventListener('click', function(){
-        Array.prototype.forEach.call(el.children, function(c){ c.classList.remove('selected'); });
-        sw.classList.add('selected');
-        onPick(hex);
-      });
+      sw.className = 'swatch' + (hex === getCurrent() ? ' selected' : '') + (unlocked ? '' : ' locked-swatch');
+      sw.style.background = unlocked ? hex : '#2a2a38';
+      sw.title = unlocked ? '' : 'Kilitli — Pazar\'da eşya satarak kazan';
+      if (unlocked){
+        sw.addEventListener('click', function(){
+          Array.prototype.forEach.call(el.children, function(c){ c.classList.remove('selected'); });
+          sw.classList.add('selected');
+          onPick(hex);
+        });
+      } else {
+        sw.innerHTML = '🔒';
+      }
       el.appendChild(sw);
     });
   }
-  buildSwatches('shirt-swatches', AVATAR_SHIRTS, avatarShirt, function(hex){
-    avatarShirt = hex; localStorage.setItem('dutArenaRbxShirt', hex); applyAvatarColors();
-  });
-  buildSwatches('pants-swatches', AVATAR_PANTS, avatarPants, function(hex){
-    avatarPants = hex; localStorage.setItem('dutArenaRbxPants', hex); applyAvatarColors();
-  });
+  function renderShirtSwatches(){
+    buildSwatches('shirt-swatches', AVATAR_SHIRTS, AVATAR_SHIRTS_BASE, function(){ return avatarShirt; }, function(hex){
+      avatarShirt = hex; localStorage.setItem('dutArenaRbxShirt', hex); applyAvatarColors();
+    });
+  }
+  function renderPantsSwatches(){
+    buildSwatches('pants-swatches', AVATAR_PANTS, AVATAR_PANTS_BASE, function(){ return avatarPants; }, function(hex){
+      avatarPants = hex; localStorage.setItem('dutArenaRbxPants', hex); applyAvatarColors();
+    });
+  }
+  renderShirtSwatches();
+  renderPantsSwatches();
   document.getElementById('avatar-btn').addEventListener('click', function(){
+    renderShirtSwatches();
+    renderPantsSwatches();
     document.getElementById('avatar-screen').classList.add('open');
   });
   document.getElementById('avatar-close-btn').addEventListener('click', function(){
