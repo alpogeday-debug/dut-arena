@@ -155,7 +155,7 @@
 <div id="hud">
   <a href="/">⬅️ Düt Arena'ya Dön</a>
   <div id="room-badge" hidden>🎮 <span id="room-code-text"></span></div>
-  <div id="hint">WASD: Hareket • Shift: Koş • Boşluk: Zıpla • E: Etkileşim • G: Ver • Fare: Kamera</div>
+  <div id="hint">WASD: Hareket • Shift: Koş • Boşluk: Zıpla • E: Etkileşim • 1-4: Eşya Seç • G: Ver • F: Kılıç Salla</div>
 </div>
 
 <div id="interact-prompt" hidden></div>
@@ -173,7 +173,18 @@
   "use strict";
 
   var scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x8ec9f0);
+  function makeSkyTexture(top, bottom){
+    var c = document.createElement('canvas');
+    c.width = 2; c.height = 256;
+    var ctx = c.getContext('2d');
+    var g = ctx.createLinearGradient(0, 0, 0, 256);
+    g.addColorStop(0, top);
+    g.addColorStop(1, bottom);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 2, 256);
+    return new THREE.CanvasTexture(c);
+  }
+  scene.background = makeSkyTexture('#5a9bd8', '#cfe8ff');
   scene.fog = new THREE.Fog(0x8ec9f0, 40, 140);
 
   var camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 500);
@@ -517,6 +528,39 @@
   rightArm.position.set(1.3, 3.9, 0);
   character.add(rightArm);
 
+  function buildSword(){
+    var g = new THREE.Group();
+    var blade = new THREE.Mesh(new THREE.BoxGeometry(0.14, 1.3, 0.05), new THREE.MeshStandardMaterial({ color:0xd8d8e4, metalness:0.6, roughness:0.3 }));
+    blade.position.y = 0.75;
+    var hilt = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.3, 0.22), new THREE.MeshStandardMaterial({ color:0x5a3a1e, roughness:0.8 }));
+    hilt.position.y = 0.05;
+    var guard = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.1, 0.12), new THREE.MeshStandardMaterial({ color:0xb0943a, metalness:0.5, roughness:0.4 }));
+    guard.position.y = 0.2;
+    g.add(blade); g.add(hilt); g.add(guard);
+    g.traverse(function(m){ if (m.isMesh) m.castShadow = true; });
+    return g;
+  }
+  var sword = buildSword();
+  sword.position.set(0, -1.9, 0.12);
+  sword.rotation.z = -0.25;
+  rightArm.add(sword);
+
+  // floating emoji over the left hand, shows whichever inventory slot is selected
+  function makeEmojiTexture(emoji){
+    var c = document.createElement('canvas');
+    c.width = 64; c.height = 64;
+    var ctx = c.getContext('2d');
+    ctx.font = '44px system-ui, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(emoji, 32, 34);
+    return new THREE.CanvasTexture(c);
+  }
+  var heldItemSprite = new THREE.Sprite(new THREE.SpriteMaterial({ transparent:true, depthTest:false }));
+  heldItemSprite.scale.set(0.8, 0.8, 1);
+  heldItemSprite.position.set(0, -2.1, 0.3);
+  heldItemSprite.visible = false;
+  leftArm.add(heldItemSprite);
+
   // Legs (pivot at hip y=2)
   var leftLeg = limb(0.75, 2, 0.75, PANTS);
   leftLeg.position.set(-0.5, 2, 0);
@@ -524,6 +568,15 @@
   var rightLeg = limb(0.75, 2, 0.75, PANTS);
   rightLeg.position.set(0.5, 2, 0);
   character.add(rightLeg);
+
+  // soft contact shadow blob under the character, tracks x/z but stays on the ground
+  var charShadow = new THREE.Mesh(
+    new THREE.CircleGeometry(1.3, 20),
+    new THREE.MeshBasicMaterial({ color:0x000000, transparent:true, opacity:0.32 })
+  );
+  charShadow.rotation.x = -Math.PI/2;
+  charShadow.position.y = 0.02;
+  scene.add(charShadow);
 
   // ---- Nametag (billboard above the head, shows the logged-in session name) ----
   function roundRect(ctx,x,y,w,h,r){
@@ -565,7 +618,7 @@
   }).catch(function(){ /* stay as Misafir */ });
 
   // ---- Remote player avatars (other people in the same room) ----
-  var remotePlayers = {}; // id -> { group, target:{x,y,z,ry} }
+  var remotePlayers = {}; // id -> { group, rightArm, target:{x,y,z,ry}, attacking, attackT, shadow }
   function buildRemoteAvatar(color, name){
     var g = new THREE.Group();
     var torsoM = new THREE.Mesh(new THREE.BoxGeometry(2,2,1), new THREE.MeshStandardMaterial({ color:color, roughness:0.7 }));
@@ -574,12 +627,16 @@
     var headM = new THREE.Mesh(new THREE.BoxGeometry(1.4,1.4,1.4), new THREE.MeshStandardMaterial({ color:SKIN, roughness:0.6 }));
     headM.position.y = 4.7; headM.castShadow = true;
     g.add(headM);
-    var armGeo = new THREE.BoxGeometry(0.6,2,0.6);
-    [-1.3,1.3].forEach(function(xoff){
-      var a = new THREE.Mesh(armGeo, new THREE.MeshStandardMaterial({ color:SKIN, roughness:0.7 }));
-      a.position.set(xoff, 2.9, 0); a.castShadow = true;
-      g.add(a);
-    });
+    var leftArmR = limb(0.6, 2, 0.6, SKIN);
+    leftArmR.position.set(-1.3, 3.9, 0);
+    g.add(leftArmR);
+    var rightArmR = limb(0.6, 2, 0.6, SKIN);
+    rightArmR.position.set(1.3, 3.9, 0);
+    g.add(rightArmR);
+    var swordR = buildSword();
+    swordR.position.set(0, -1.9, 0.12);
+    swordR.rotation.z = -0.25;
+    rightArmR.add(swordR);
     var legGeo = new THREE.BoxGeometry(0.75,2,0.75);
     [-0.5,0.5].forEach(function(xoff){
       var l = new THREE.Mesh(legGeo, new THREE.MeshStandardMaterial({ color:PANTS, roughness:0.7 }));
@@ -591,19 +648,31 @@
     tagSprite.position.set(0, 5.7, 0);
     g.add(tagSprite);
     scene.add(g);
-    return g;
+    var shadow = new THREE.Mesh(
+      new THREE.CircleGeometry(1.3, 20),
+      new THREE.MeshBasicMaterial({ color:0x000000, transparent:true, opacity:0.32 })
+    );
+    shadow.rotation.x = -Math.PI/2;
+    shadow.position.y = 0.02;
+    scene.add(shadow);
+    return { group:g, rightArm:rightArmR, shadow:shadow };
   }
   function addRemotePlayer(p){
     if (remotePlayers[p.id]) return;
-    var group = buildRemoteAvatar(p.color || '#1e5fa8', p.name || 'Oyuncu');
-    group.position.set(p.x||0, p.y||0, p.z||0);
-    group.rotation.y = p.ry||0;
-    remotePlayers[p.id] = { group:group, target:{ x:p.x||0, y:p.y||0, z:p.z||0, ry:p.ry||0 } };
+    var built = buildRemoteAvatar(p.color || '#1e5fa8', p.name || 'Oyuncu');
+    built.group.position.set(p.x||0, p.y||0, p.z||0);
+    built.group.rotation.y = p.ry||0;
+    remotePlayers[p.id] = {
+      group: built.group, rightArm: built.rightArm, shadow: built.shadow,
+      attacking:false, attackT:0,
+      target:{ x:p.x||0, y:p.y||0, z:p.z||0, ry:p.ry||0 }
+    };
   }
   function removeRemotePlayer(id){
     var rp = remotePlayers[id];
     if (!rp) return;
     scene.remove(rp.group);
+    scene.remove(rp.shadow);
     delete remotePlayers[id];
   }
   function clearRemotePlayers(){
@@ -653,6 +722,9 @@
         var item = msg.item || { emoji:'🎁', name:'Eşya' };
         if (addToInventory(item)) appendChat('Sistem', (msg.fromName||'Biri') + ' sana bir ' + item.name + ' verdi! ' + item.emoji);
         else appendChat('Sistem', (msg.fromName||'Biri') + ' sana bir ' + item.name + ' vermek istedi ama envanterin dolu.');
+      } else if (msg.type === 'rbx-action'){
+        var rpA = remotePlayers[msg.id];
+        if (rpA && msg.action === 'swing' && !rpA.attacking){ rpA.attacking = true; rpA.attackT = 0; }
       }
     });
     ws.addEventListener('close', function(){ setTimeout(connectWs, 1500); });
@@ -679,12 +751,13 @@
       var el = document.createElement('div');
       el.className = 'inv-slot empty';
       invBar.appendChild(el);
-      el.addEventListener('click', function(){
-        if (!inventory[slotIndex]) return;
-        selectedSlot = (selectedSlot === slotIndex) ? -1 : slotIndex;
-        renderInventory();
-      });
+      el.addEventListener('click', function(){ selectSlot(slotIndex); });
     })(si);
+  }
+  function selectSlot(slotIndex){
+    if (!inventory[slotIndex]) return;
+    selectedSlot = (selectedSlot === slotIndex) ? -1 : slotIndex;
+    renderInventory();
   }
   function renderInventory(){
     var slots = invBar.children;
@@ -693,6 +766,13 @@
       slots[i].textContent = item ? item.emoji : '';
       slots[i].classList.toggle('empty', !item);
       slots[i].classList.toggle('selected', i === selectedSlot);
+    }
+    if (selectedSlot >= 0 && inventory[selectedSlot]){
+      heldItemSprite.material.map = makeEmojiTexture(inventory[selectedSlot].emoji);
+      heldItemSprite.material.needsUpdate = true;
+      heldItemSprite.visible = true;
+    } else {
+      heldItemSprite.visible = false;
     }
   }
   function addToInventory(item){
@@ -832,6 +912,11 @@
     if (e.code === 'Space') e.preventDefault();
     if (e.code === 'KeyE') tryInteract();
     if (e.code === 'KeyG') tryGive();
+    if (e.code === 'KeyF') tryAttack();
+    if (e.code === 'Digit1') selectSlot(0);
+    if (e.code === 'Digit2') selectSlot(1);
+    if (e.code === 'Digit3') selectSlot(2);
+    if (e.code === 'Digit4') selectSlot(3);
   });
   window.addEventListener('keyup', function(e){
     if (isTypingTarget(e)) return;
@@ -846,6 +931,15 @@
   var RUN_SPEED = 20;
   var MOVE_SPEED = WALK_SPEED;
   var started = false;
+  var isAttacking = false;
+  var attackT = 0;
+  var ATTACK_DURATION = 0.35;
+  function tryAttack(){
+    if (!started || isAttacking) return;
+    isAttacking = true;
+    attackT = 0;
+    sendOrQueue({ type:'rbx-action', action:'swing' });
+  }
   var charFacing = 0; // radians
   var moving = false;
   var walkT = 0;
@@ -952,6 +1046,16 @@
       leftLeg.rotation.x = 0;
       rightLeg.rotation.x = 0;
     }
+    if (isAttacking){
+      attackT += dt;
+      var ap = Math.min(1, attackT / ATTACK_DURATION);
+      rightArm.rotation.x = -0.3 - Math.sin(ap * Math.PI) * 2.1;
+      rightArm.rotation.z = -Math.sin(ap * Math.PI) * 0.8;
+      if (attackT >= ATTACK_DURATION){ isAttacking = false; rightArm.rotation.z = 0; }
+    }
+    charShadow.position.x = character.position.x;
+    charShadow.position.z = character.position.z;
+    charShadow.material.opacity = Math.max(0.06, 0.32 - character.position.y * 0.03);
 
     // camera follow (orbit around character)
     var targetPos = character.position.clone().add(new THREE.Vector3(0, 3.2, 0));
@@ -970,6 +1074,15 @@
       rp.group.position.lerp(new THREE.Vector3(rp.target.x, rp.target.y, rp.target.z), Math.min(1, dt*10));
       var diff = ((rp.target.ry - rp.group.rotation.y + Math.PI) % (Math.PI*2)) - Math.PI;
       rp.group.rotation.y += diff * Math.min(1, dt*10);
+      rp.shadow.position.x = rp.group.position.x;
+      rp.shadow.position.z = rp.group.position.z;
+      if (rp.attacking){
+        rp.attackT += dt;
+        var rap = Math.min(1, rp.attackT / ATTACK_DURATION);
+        rp.rightArm.rotation.x = -0.3 - Math.sin(rap * Math.PI) * 2.1;
+        rp.rightArm.rotation.z = -Math.sin(rap * Math.PI) * 0.8;
+        if (rp.attackT >= ATTACK_DURATION){ rp.attacking = false; rp.rightArm.rotation.z = 0; }
+      }
     });
 
     // bob interactable markers, and show a prompt when close enough to press E

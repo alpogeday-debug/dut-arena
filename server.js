@@ -784,6 +784,15 @@ wss.on('connection', (ws, req) => {
       return;
     }
 
+    if (msg.type === 'rbx-action') {
+      const code = ws.rbxRoom;
+      if (!code) return;
+      const action = String(msg.action || '').slice(0, 20);
+      if (!action) return;
+      broadcastRbx(code, { type: 'rbx-action', id, action }, ws);
+      return;
+    }
+
     if (msg.type === 'list-rooms') {
       ws.send(JSON.stringify({ type: 'room-list', rooms: roomListPayload() }));
       return;
