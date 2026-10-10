@@ -533,16 +533,26 @@
   head.position.y = 4.7;
   head.castShadow = true;
   character.add(head);
-  // simple face
+  // simple face (hidden behind the helmet visor while armored)
   var faceMat = new THREE.MeshStandardMaterial({ color:0x2b2b2b, roughness:0.5 });
+  var faceMeshes = [];
   [[-0.35,4.8,0.71],[0.35,4.8,0.71]].forEach(function(p){
     var eye = new THREE.Mesh(new THREE.BoxGeometry(0.16,0.16,0.04), faceMat);
     eye.position.set(p[0],p[1],p[2]);
     character.add(eye);
+    faceMeshes.push(eye);
   });
   var mouth = new THREE.Mesh(new THREE.BoxGeometry(0.5,0.08,0.04), faceMat);
   mouth.position.set(0, 4.45, 0.71);
   character.add(mouth);
+  faceMeshes.push(mouth);
+  var visor = new THREE.Mesh(
+    new THREE.BoxGeometry(1.1, 0.55, 0.08),
+    new THREE.MeshStandardMaterial({ color:0x3ad6ff, emissive:0x1aa0c0, roughness:0.3, metalness:0.4 })
+  );
+  visor.position.set(0, 4.65, 0.72);
+  visor.visible = false;
+  character.add(visor);
 
   // Arms (pivot at shoulder y=3.9)
   var leftArm = limb(0.6, 2, 0.6, SKIN);
@@ -1074,6 +1084,8 @@
     isArmored = !isArmored;
     armorAnimating = true;
     armorAnimT = 0;
+    faceMeshes.forEach(function(m){ m.visible = !isArmored; });
+    visor.visible = isArmored;
     buildArmorPieces(isArmored);
     sendOrQueue({ type:'rbx-action', action: isArmored ? 'armor-on' : 'armor-off' });
   }
@@ -1171,8 +1183,9 @@
       var stepX = move.x * flySpeed * dt;
       var stepZ = move.z * flySpeed * dt;
       var curX = character.position.x, curZ = character.position.z;
-      if (isFlying || !hitsSolid(curX + stepX, curZ)) character.position.x = curX + stepX;
-      if (isFlying || !hitsSolid(character.position.x, curZ + stepZ)) character.position.z = curZ + stepZ;
+      var clearOfRooftops = isFlying && character.position.y > 18; // high enough to soar over buildings
+      if (clearOfRooftops || !hitsSolid(curX + stepX, curZ)) character.position.x = curX + stepX;
+      if (clearOfRooftops || !hitsSolid(character.position.x, curZ + stepZ)) character.position.z = curZ + stepZ;
       var targetFacing = Math.atan2(move.x, move.z);
       // shortest-path rotation
       var diff = ((targetFacing - charFacing + Math.PI) % (Math.PI*2)) - Math.PI;
