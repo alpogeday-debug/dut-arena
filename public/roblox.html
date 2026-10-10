@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Roblox Dünyası - Düt Arena</title>
+<title>Düt Dünyası - Düt Arena</title>
 <style>
   html,body{ margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#0d0d14; font-family:system-ui,-apple-system,sans-serif; }
   canvas{ display:block; }
@@ -196,7 +196,7 @@
 <div id="start-screen">
   <div class="start-card wide">
     <div class="home-top-row">
-      <h1>🎮 Roblox Dünyası</h1>
+      <h1>🎮 Düt Dünyası</h1>
       <div style="display:flex; gap:8px;">
         <button type="button" class="ghost-btn" id="achv-btn">🏆 Başarımlar</button>
         <button type="button" class="ghost-btn" id="avatar-btn">🧑 Avatar</button>
@@ -594,9 +594,9 @@
   // ---- Achievements ----
   var ACHIEVEMENTS = [
     { id:'first_join', emoji:'🚶', title:'İlk Adım', desc:'Bir dünyaya ilk kez girdin' },
-    { id:'first_stone', emoji:'💎', title:'İlk Taş', desc:'İlk Sonsuzluk Taşı\'nı buldun' },
-    { id:'three_stones', emoji:'🔍', title:'Taş Avcısı', desc:'3 Sonsuzluk Taşı topladın' },
-    { id:'gauntlet', emoji:'🌌', title:'Sonsuzluk Eldiveni', desc:'6 taşı da toplayıp eldiveni tamamladın' },
+    { id:'first_stone', emoji:'💎', title:'İlk Taş', desc:'İlk Ebedi Taşı\'nı buldun' },
+    { id:'three_stones', emoji:'🔍', title:'Taş Avcısı', desc:'3 Ebedi Taş topladın' },
+    { id:'gauntlet', emoji:'🌌', title:'Ebedi Eldiven', desc:'6 taşı da toplayıp eldiveni tamamladın' },
     { id:'snap', emoji:'💥', title:'Çatırt!', desc:'Çatırt yeteneğini kullandın' },
     { id:'flyer', emoji:'🦅', title:'Gökyüzü Fatihi', desc:'İlk kez uçtun' },
     { id:'portal', emoji:'🌀', title:'Portal Gezgini', desc:'Bir portaldan geçip başka dünyaya geçtin' },
@@ -1188,11 +1188,11 @@
 
   // ---- Super hero picker ----
   var HEROES = [
-    { id:'ironman', icon:'🦾', title:'Iron Man', grad:'#b0241a,#d4af37' },
-    { id:'captain', icon:'🛡️', title:'Kaptan Amerika', grad:'#1f4fa8,#e8e8e8' },
-    { id:'thor', icon:'🔨', title:'Thor', grad:'#2b4a7a,#c8ccd4' },
-    { id:'hulk', icon:'💪', title:'Hulk', grad:'#2d6a2d,#6a3a8a' },
-    { id:'strange', icon:'🌀', title:'Doctor Strange', grad:'#1a3a6b,#8b1a2b' }
+    { id:'ironman', icon:'🦾', title:'Çelik Şahin', grad:'#b0241a,#d4af37' },
+    { id:'captain', icon:'🛡️', title:'Yıldız Nöbetçi', grad:'#1f4fa8,#e8e8e8' },
+    { id:'thor', icon:'🔨', title:'Şimşek Beyi', grad:'#2b4a7a,#c8ccd4' },
+    { id:'hulk', icon:'💪', title:'Yeşil Öfke', grad:'#2d6a2d,#6a3a8a' },
+    { id:'strange', icon:'🌀', title:'Boyut Gezgini', grad:'#1a3a6b,#8b1a2b' }
   ];
   function getHeroBaseColors(hero){
     if (hero === 'hulk') return { torso:0x4caf50, head:0x5fbf5f, limb:0x5fbf5f, leg:0x3a1a5a };
@@ -1682,7 +1682,7 @@
     isFlying = true;
     velocityY = 0;
     var banner = document.getElementById('cutscene-banner');
-    banner.textContent = '🌌 Sonsuzluk Eldiveni birleşiyor...';
+    banner.textContent = '🌌 Ebedi Eldiven birleşiyor...';
     banner.hidden = false;
     cutsceneStones = STONES.map(function(s, i){
       var a = (i / STONES.length) * Math.PI * 2;
@@ -1717,7 +1717,7 @@
     ctx.fillStyle = grad;
     ctx.fillRect(0, out.height - barH, out.width, barH);
     var scale = out.width / 1280;
-    var worldTitle = document.getElementById('room-code-text').textContent || 'Roblox Dünyası';
+    var worldTitle = document.getElementById('room-code-text').textContent || 'Düt Dünyası';
     ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold ' + Math.round(26 * scale) + 'px system-ui, sans-serif';
@@ -1750,7 +1750,7 @@
     cutsceneStones.forEach(function(cs){ scene.remove(cs.mesh); });
     cutsceneStones = [];
     document.getElementById('cutscene-banner').hidden = true;
-    appendChat('Sistem', '🌌 Sonsuzluk Eldiveni tamamlandı! Artık Çatırt yeteneğin var (T tuşu).');
+    appendChat('Sistem', '🌌 Ebedi Eldiven tamamlandı! Artık Çatırt yeteneğin var (T tuşu).');
     unlockAchv('gauntlet');
   }
 
