@@ -155,7 +155,7 @@
 <div id="hud">
   <a href="/">⬅️ Düt Arena'ya Dön</a>
   <div id="room-badge" hidden>🎮 <span id="room-code-text"></span></div>
-  <div id="hint">WASD: Hareket • Shift: Koş • Boşluk: Zıpla (2x: Uç) • E: Etkileşim • 1-4: Eşya Seç • G: Ver • F: Kılıç • L: Lazer • I: Zırh</div>
+  <div id="hint">WASD: Hareket • Shift: Koş • Boşluk: Zıpla (2x: Uç, zırh gerekir) • E: Etkileşim • 1-4: Eşya Seç • G: Ver • F: Kılıç • L: Lazer • I: Zırh Kuşan</div>
 </div>
 
 <div id="interact-prompt" hidden></div>
@@ -663,11 +663,12 @@
     swordR.rotation.z = -0.2;
     rightArmR.add(swordR);
     var legGeo = new THREE.BoxGeometry(0.75,2,0.75);
-    [-0.5,0.5].forEach(function(xoff){
-      var l = new THREE.Mesh(legGeo, new THREE.MeshStandardMaterial({ color:PANTS, roughness:0.7 }));
-      l.position.set(xoff, 1, 0); l.castShadow = true;
-      g.add(l);
-    });
+    var leftLegM = new THREE.Mesh(legGeo, new THREE.MeshStandardMaterial({ color:PANTS, roughness:0.7 }));
+    leftLegM.position.set(-0.5, 1, 0); leftLegM.castShadow = true;
+    g.add(leftLegM);
+    var rightLegM = new THREE.Mesh(legGeo, new THREE.MeshStandardMaterial({ color:PANTS, roughness:0.7 }));
+    rightLegM.position.set(0.5, 1, 0); rightLegM.castShadow = true;
+    g.add(rightLegM);
     var tagSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeNameTexture(name || 'Oyuncu'), transparent:true, depthTest:false }));
     tagSprite.scale.set(2.2, 0.55, 1);
     tagSprite.position.set(0, 5.7, 0);
@@ -680,7 +681,21 @@
     shadow.rotation.x = -Math.PI/2;
     shadow.position.y = 0.02;
     scene.add(shadow);
-    return { group:g, rightArm:rightArmR, shadow:shadow, torso:torsoM, head:headM };
+    return {
+      group:g, rightArm:rightArmR, shadow:shadow, torso:torsoM, head:headM,
+      leftArmMesh:leftArmR.children[0], rightArmMesh:rightArmR.children[0],
+      leftLeg:leftLegM, rightLeg:rightLegM
+    };
+  }
+  function setRemoteArmor(rp, armored){
+    var SKIN_C = new THREE.Color(SKIN), PANTS_C = new THREE.Color(PANTS);
+    var MAIN = new THREE.Color(0xb0241a), GOLD = new THREE.Color(0xd4af37), DARK = new THREE.Color(0x8a1a12);
+    rp.torso.material.color.copy(armored ? MAIN : rp.baseShirt);
+    rp.head.material.color.copy(armored ? GOLD : SKIN_C);
+    rp.leftArmMesh.material.color.copy(armored ? MAIN : SKIN_C);
+    rp.rightArmMesh.material.color.copy(armored ? MAIN : SKIN_C);
+    rp.leftLeg.material.color.copy(armored ? DARK : PANTS_C);
+    rp.rightLeg.material.color.copy(armored ? DARK : PANTS_C);
   }
   function addRemotePlayer(p){
     if (remotePlayers[p.id]) return;
@@ -689,6 +704,8 @@
     built.group.rotation.y = p.ry||0;
     remotePlayers[p.id] = {
       group: built.group, rightArm: built.rightArm, shadow: built.shadow, torso: built.torso, head: built.head,
+      leftArmMesh: built.leftArmMesh, rightArmMesh: built.rightArmMesh, leftLeg: built.leftLeg, rightLeg: built.rightLeg,
+      baseShirt: built.torso.material.color.clone(),
       attacking:false, attackT:0,
       target:{ x:p.x||0, y:p.y||0, z:p.z||0, ry:p.ry||0 }
     };
@@ -702,16 +719,6 @@
   }
   function clearRemotePlayers(){
     Object.keys(remotePlayers).forEach(removeRemotePlayer);
-  }
-  function flashRemoteArmor(rp){
-    var prevTorso = rp.torso.material.emissive.getHex();
-    var prevHead = rp.head.material.emissive.getHex();
-    rp.torso.material.emissive.setHex(0xcc2200);
-    rp.head.material.emissive.setHex(0xcc2200);
-    setTimeout(function(){
-      rp.torso.material.emissive.setHex(prevTorso);
-      rp.head.material.emissive.setHex(prevHead);
-    }, 400);
   }
 
   // ---- Networking (rooms, positions, chat) ----
@@ -762,7 +769,8 @@
         if (!rpA) { /* no-op */ }
         else if (msg.action === 'swing' && !rpA.attacking){ rpA.attacking = true; rpA.attackT = 0; }
         else if (msg.action === 'laser'){ spawnLaserBeam(rpA.group, rpA.group.rotation.y); }
-        else if (msg.action === 'armor-on' || msg.action === 'armor-off'){ flashRemoteArmor(rpA); }
+        else if (msg.action === 'armor-on'){ setRemoteArmor(rpA, true); }
+        else if (msg.action === 'armor-off'){ setRemoteArmor(rpA, false); }
       }
     });
     ws.addEventListener('close', function(){ setTimeout(connectWs, 1500); });
@@ -1005,9 +1013,28 @@
 
   function toggleFly(){
     if (!started) return;
+    if (!isFlying && !isArmored){
+      appendChat('Sistem', '🦸 Uçmak için önce zırhını kuşanmalısın! (I tuşu)');
+      return;
+    }
     isFlying = !isFlying;
     if (isFlying){ velocityY = 0; }
   }
+
+  function buildFlame(){
+    var geo = new THREE.ConeGeometry(0.22, 0.9, 8);
+    geo.translate(0, -0.45, 0); // pivot at top (attach point), cone points down
+    var mat = new THREE.MeshBasicMaterial({ color:0xffa726, transparent:true, opacity:0.85 });
+    return new THREE.Mesh(geo, mat);
+  }
+  var leftFlame = buildFlame();
+  leftFlame.position.set(0, -2, 0);
+  leftFlame.visible = false;
+  leftLeg.add(leftFlame);
+  var rightFlame = buildFlame();
+  rightFlame.position.set(0, -2, 0);
+  rightFlame.visible = false;
+  rightLeg.add(rightFlame);
 
   function fireLaser(){
     if (!started || isFiring) return;
@@ -1033,8 +1060,17 @@
   }
   var activeLasers = [];
 
+  var ARMOR_PARTS = [
+    { mat:torso.material, from:new THREE.Color(SHIRT), to:new THREE.Color(0xb0241a) },
+    { mat:head.material, from:new THREE.Color(SKIN), to:new THREE.Color(0xd4af37) },
+    { mat:leftArm.children[0].material, from:new THREE.Color(SKIN), to:new THREE.Color(0xb0241a) },
+    { mat:rightArm.children[0].material, from:new THREE.Color(SKIN), to:new THREE.Color(0xb0241a) },
+    { mat:leftLeg.children[0].material, from:new THREE.Color(PANTS), to:new THREE.Color(0x8a1a12) },
+    { mat:rightLeg.children[0].material, from:new THREE.Color(PANTS), to:new THREE.Color(0x8a1a12) }
+  ];
   function toggleArmor(){
     if (!started || armorAnimating) return;
+    if (isArmored && isFlying) isFlying = false; // land before taking the armor off
     isArmored = !isArmored;
     armorAnimating = true;
     armorAnimT = 0;
@@ -1194,10 +1230,15 @@
       character.rotation.x = -0.32;
       leftArm.rotation.x = -1.5; rightArm.rotation.x = -1.5;
       leftArm.rotation.z = 0.15; rightArm.rotation.z = -0.15;
-      leftLeg.rotation.x = 1.5; rightLeg.rotation.x = 1.5;
+      leftLeg.rotation.x = 0; rightLeg.rotation.x = 0;
+      leftFlame.visible = true; rightFlame.visible = true;
+      var flick = 0.8 + Math.random() * 0.5;
+      leftFlame.scale.set(flick, 0.8 + Math.random()*0.6, flick);
+      rightFlame.scale.set(flick, 0.8 + Math.random()*0.6, flick);
     } else {
       character.rotation.x = 0;
       leftArm.rotation.z = 0; rightArm.rotation.z = 0;
+      leftFlame.visible = false; rightFlame.visible = false;
     }
     if (isAttacking){
       attackT += dt;
@@ -1218,6 +1259,8 @@
       armorPieces.forEach(function(p){
         p.mesh.position.lerpVectors(p.from, p.to, eased);
       });
+      var colorT = isArmored ? eased : 1 - eased;
+      ARMOR_PARTS.forEach(function(ap){ ap.mat.color.lerpColors(ap.from, ap.to, colorT); });
       if (arp >= 1){
         armorAnimating = false;
         armorPieces.forEach(function(p){
