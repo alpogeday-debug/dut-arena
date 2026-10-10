@@ -257,132 +257,180 @@
     }
   }
 
-  function addHouse(x, z, color){
-    addBlock(x, z, 5, 3, 5, color);
-    addBlock(x, z, 5.6, 0.8, 5.6, 0x7a4a2b);
+  function addHouse(x, z, color, scale){
+    var s = scale || 1;
+    addBlock(x, z, 7*s, 4*s, 7*s, color);
+    addBlock(x, z, 7.8*s, 1*s, 7.8*s, 0x7a4a2b);
   }
 
   var MAP_THEMES = {
-    kacis: function(){ // Kaçış Binası — corridor walls to navigate
+    kacis: function(){ // Kaçış Binası — a bigger corridor maze
       groundMat.color.set(0x55575e);
-      addBlock(0, -4, 14, 3, 1, 0x3a3d45);
-      addBlock(6, 2, 1, 3, 10, 0x3a3d45);
-      addBlock(-6, 2, 1, 3, 10, 0x3a3d45);
-      addBlock(0, 10, 10, 3, 1, 0x3a3d45);
-      addBlock(10, 10, 1, 3, 10, 0x3a3d45);
+      addBlock(0, -8, 22, 4, 1, 0x3a3d45);
+      addBlock(10, 0, 1, 4, 18, 0x3a3d45);
+      addBlock(-10, 0, 1, 4, 18, 0x3a3d45);
+      addBlock(0, 16, 16, 4, 1, 0x3a3d45);
+      addBlock(16, 16, 1, 4, 16, 0x3a3d45);
+      addBlock(-16, 16, 1, 4, 16, 0x3a3d45);
+      addBlock(0, -1, 10, 4, 1, 0x4a4d58);
+      addBlock(6, 8, 1, 4, 8, 0x4a4d58);
+      addBlock(-6, 8, 1, 4, 8, 0x4a4d58);
+      addBlock(0, 24, 20, 4, 1, 0x3a3d45);
     },
-    ciftlik: function(){ // Evcil Hayvan Çiftliği — fenced pens + barn
+    ciftlik: function(){ // Evcil Hayvan Çiftliği — bigger barn + two pens
       groundMat.color.set(0x8fae5e);
-      addBlock(10, 8, 0.4, 1, 8, 0xa9772f);
-      addBlock(14, 4, 8, 1, 0.4, 0xa9772f);
-      addBlock(14, 12, 8, 1, 0.4, 0xa9772f);
-      addBlock(18, 8, 0.4, 1, 8, 0xa9772f);
-      addHouse(-10, -8, 0xb03a3a);
+      addBlock(14, 10, 0.5, 1.4, 12, 0xa9772f);
+      addBlock(20, 4, 12, 1.4, 0.5, 0xa9772f);
+      addBlock(20, 16, 12, 1.4, 0.5, 0xa9772f);
+      addBlock(26, 10, 0.5, 1.4, 12, 0xa9772f);
+      addBlock(-14, 10, 0.5, 1.4, 10, 0xa9772f);
+      addBlock(-20, 5, 10, 1.4, 0.5, 0xa9772f);
+      addBlock(-20, 15, 10, 1.4, 0.5, 0xa9772f);
+      addBlock(-26, 10, 0.5, 1.4, 10, 0xa9772f);
+      addHouse(-10, -12, 0xb03a3a, 1.4);
+      addHouse(10, -14, 0xd9a23a, 1.1);
     },
-    kule: function(){ // Zorluk Kulesi — a zig-zag path upward (visual only, flat collision)
+    kule: function(){ // Zorluk Kulesi — a taller zig-zag path upward
       groundMat.color.set(0x6b6f7a);
-      addBlock(0, -6, 4, 2, 4, 0x9aa0ad);
-      addBlock(5, -2, 4, 2, 4, 0x9aa0ad);
-      addBlock(0, 2, 4, 2, 4, 0x9aa0ad);
-      addBlock(-5, 6, 4, 2, 4, 0x9aa0ad);
-      addBlock(0, 10, 4, 2, 4, 0x9aa0ad);
+      addBlock(0, -10, 6, 3, 6, 0x9aa0ad);
+      addBlock(8, -4, 6, 3, 6, 0x9aa0ad);
+      addBlock(0, 2, 6, 3, 6, 0x9aa0ad);
+      addBlock(-8, 8, 6, 3, 6, 0x9aa0ad);
+      addBlock(0, 14, 6, 3, 6, 0x9aa0ad);
+      addBlock(8, 20, 6, 3, 6, 0x9aa0ad);
+      addBlock(0, 26, 6, 3, 6, 0x9aa0ad);
+      addBlock(-8, 32, 8, 3, 8, 0xc0c6d0);
     },
-    mahalle: function(){ // Komşu Mahallesi — a few houses around a square
+    mahalle: function(){ // Komşu Mahallesi — a bigger neighborhood
       groundMat.color.set(0x9fcf7a);
-      addHouse(10, 10, 0xd98c3a);
-      addHouse(-10, 10, 0x4a90c0);
-      addHouse(10, -10, 0xb0463a);
-      addHouse(-10, -10, 0x6ab04a);
+      addHouse(14, 14, 0xd98c3a);
+      addHouse(-14, 14, 0x4a90c0);
+      addHouse(14, -14, 0xb0463a);
+      addHouse(-14, -14, 0x6ab04a);
+      addHouse(26, 0, 0x8e44ad);
+      addHouse(-26, 0, 0x16a085);
+      addHouse(0, 26, 0xe67e22);
+      addHouse(0, -26, 0x2c3e50);
     },
-    arena: function(){ // Savaş Arenası
+    arena: function(){ // Savaş Arenası — bigger ring, more cover
       groundMat.color.set(0x8c6a6a);
-      var n = 14, r = 26;
+      var n = 20, r = 34;
       for (var i = 0; i < n; i++){
         var a = (i/n) * Math.PI*2;
-        addBlock(Math.cos(a)*r, Math.sin(a)*r, 4, 3, 4, 0x6b3a3a);
+        addBlock(Math.cos(a)*r, Math.sin(a)*r, 5, 4, 5, 0x6b3a3a);
       }
-      addBlock(6, 0, 3, 1.4, 3, 0xb08a3a);
-      addBlock(-6, 6, 3, 1.4, 3, 0xb08a3a);
-      addBlock(-6, -6, 3, 1.4, 3, 0xb08a3a);
+      addBlock(8, 0, 4, 2, 4, 0xb08a3a);
+      addBlock(-8, 8, 4, 2, 4, 0xb08a3a);
+      addBlock(-8, -8, 4, 2, 4, 0xb08a3a);
+      addBlock(8, 8, 4, 2, 4, 0xb08a3a);
+      addBlock(8, -8, 4, 2, 4, 0xb08a3a);
+      addBlock(0, 0, 5, 3, 5, 0xc9a23a);
     },
-    yaris: function(){ // Yarış Pisti — oval barrier outline
+    yaris: function(){ // Yarış Pisti — a bigger oval barrier
       groundMat.color.set(0x4a4a52);
-      var pts = 20, rx = 30, rz = 18;
+      var pts = 32, rx = 42, rz = 26;
       for (var i = 0; i < pts; i++){
         var a = (i/pts) * Math.PI*2;
-        addBlock(Math.cos(a)*rx, Math.sin(a)*rz, 1.4, 1, 1.4, 0xd94a3a);
+        addBlock(Math.cos(a)*rx, Math.sin(a)*rz, 1.8, 1.4, 1.8, 0xd94a3a);
+      }
+      var pts2 = 20, rx2 = 20, rz2 = 10;
+      for (var j = 0; j < pts2; j++){
+        var a2 = (j/pts2) * Math.PI*2;
+        addBlock(Math.cos(a2)*rx2, Math.sin(a2)*rz2, 1.4, 1, 1.4, 0xf0f0f0);
       }
     },
-    ada: function(){ // Hayatta Kalma Adası
+    ada: function(){ // Hayatta Kalma Adası — more rocks and trees
       groundMat.color.set(0xd8c27a);
-      addBlock(6, 4, 2, 5, 2, 0x6b4a2b);
-      addBlock(-8, -6, 2.2, 4, 2.2, 0x6b4a2b);
-      addBlock(2, -10, 3, 2, 3, 0x7a7a7a);
-      addBlock(-4, 10, 3, 2, 3, 0x7a7a7a);
+      addBlock(8, 6, 2.5, 7, 2.5, 0x6b4a2b);
+      addBlock(14, 10, 3, 4, 3, 0x4a8a3a);
+      addBlock(-10, -8, 3, 6, 3, 0x6b4a2b);
+      addBlock(-16, -12, 3, 4, 3, 0x4a8a3a);
+      addBlock(3, -14, 4, 3, 4, 0x7a7a7a);
+      addBlock(-5, 14, 4, 3, 4, 0x7a7a7a);
+      addBlock(18, -4, 2.5, 5, 2.5, 0x6b4a2b);
+      addBlock(-18, 4, 2.5, 5, 2.5, 0x6b4a2b);
     },
-    restoran: function(){ // Restoranını İşlet
+    restoran: function(){ // Restoranını İşlet — bigger building + more tables
       groundMat.color.set(0xbfa06a);
-      addBlock(0, -10, 10, 2, 2, 0x8a5a3a);
-      [[-6,-2],[0,-2],[6,-2],[-6,6],[0,6],[6,6]].forEach(function(p){
-        addBlock(p[0], p[1], 1.4, 1, 1.4, 0x5a5a5a);
+      addBlock(0, -16, 16, 4, 3, 0x8a5a3a);
+      [[-9,-3],[-3,-3],[3,-3],[9,-3],[-9,5],[-3,5],[3,5],[9,5],[-6,13],[6,13]].forEach(function(p){
+        addBlock(p[0], p[1], 1.8, 1.2, 1.8, 0x5a5a5a);
       });
     },
-    ajan: function(){ // Gizli Ajan
+    ajan: function(){ // Gizli Ajan — more crates and corridors
       groundMat.color.set(0x2c2c38);
-      addBlock(8, 6, 3, 2.4, 3, 0x45455a);
-      addBlock(-8, 6, 3, 2.4, 3, 0x45455a);
-      addBlock(8, -8, 3, 2.4, 3, 0x45455a);
-      addBlock(-8, -8, 3, 2.4, 3, 0x45455a);
-      addBlock(0, 0, 4, 2.4, 4, 0x555570);
+      addBlock(12, 8, 4, 3, 4, 0x45455a);
+      addBlock(-12, 8, 4, 3, 4, 0x45455a);
+      addBlock(12, -10, 4, 3, 4, 0x45455a);
+      addBlock(-12, -10, 4, 3, 4, 0x45455a);
+      addBlock(20, 0, 3, 3, 3, 0x3a3a4a);
+      addBlock(-20, 0, 3, 3, 3, 0x3a3a4a);
+      addBlock(0, 16, 3, 3, 3, 0x3a3a4a);
+      addBlock(0, -16, 3, 3, 3, 0x3a3a4a);
+      addBlock(0, 0, 6, 3, 6, 0x555570);
     },
-    sehir: function(){ // Şehir İnşa Et
+    sehir: function(){ // Şehir İnşa Et — more, taller skyscrapers
       groundMat.color.set(0x6e6e76);
-      addBlock(8, 8, 5, 10, 5, 0x5a7a9a);
-      addBlock(-8, 8, 4, 16, 4, 0x4a6a8a);
-      addBlock(8, -8, 4, 6, 4, 0x7a8aa0);
-      addBlock(-8, -8, 5, 12, 5, 0x5a7a9a);
+      addBlock(10, 10, 6, 16, 6, 0x5a7a9a);
+      addBlock(-10, 10, 5, 24, 5, 0x4a6a8a);
+      addBlock(10, -10, 5, 10, 5, 0x7a8aa0);
+      addBlock(-10, -10, 6, 20, 6, 0x5a7a9a);
+      addBlock(22, 0, 5, 12, 5, 0x6a8ab0);
+      addBlock(-22, 0, 4, 8, 4, 0x8a9ab8);
+      addBlock(0, 22, 7, 28, 7, 0x4a6a8a);
+      addBlock(0, -22, 5, 14, 5, 0x5a7a9a);
     },
-    zombi: function(){ // Zombi Kaçışı
+    zombi: function(){ // Zombi Kaçışı — more barricades + a safehouse
       groundMat.color.set(0x5a6b4a);
-      var n = 10, r = 20;
+      var n = 16, r = 28;
       for (var i = 0; i < n; i++){
         var a = (i/n) * Math.PI*2;
-        addBlock(Math.cos(a)*r, Math.sin(a)*r, 2, 2, 1, 0x4a4030);
+        addBlock(Math.cos(a)*r, Math.sin(a)*r, 2.5, 3, 1.4, 0x4a4030);
       }
+      addHouse(0, 0, 0x5a5a4a, 1.2);
     },
-    balik: function(){ // Balık Tut
+    balik: function(){ // Balık Tut — longer pier + dock house
       groundMat.color.set(0x3a6a8a);
-      addBlock(0, 0, 4, 0.6, 18, 0x8a5a3a);
-      addBlock(-2.5, -2, 0.6, 1.4, 0.6, 0x6b4a2b);
-      addBlock(2.5, 4, 0.6, 1.4, 0.6, 0x6b4a2b);
+      addBlock(0, 2, 5, 0.8, 26, 0x8a5a3a);
+      addBlock(-3, -6, 0.8, 1.8, 0.8, 0x6b4a2b);
+      addBlock(3, 2, 0.8, 1.8, 0.8, 0x6b4a2b);
+      addBlock(-3, 10, 0.8, 1.8, 0.8, 0x6b4a2b);
+      addHouse(10, -12, 0x8a5a3a, 1);
     },
-    basketbol: function(){ // Basketbol Sahası
+    basketbol: function(){ // Basketbol Sahası — bigger court + stands
       groundMat.color.set(0xb5652f);
-      addBlock(0, -16, 0.5, 4, 3, 0xe0e0e0);
-      addBlock(0, 16, 0.5, 4, 3, 0xe0e0e0);
+      addBlock(0, -22, 0.6, 5, 4, 0xe0e0e0);
+      addBlock(0, 22, 0.6, 5, 4, 0xe0e0e0);
+      addBlock(-18, 0, 2, 3, 10, 0x7a7a80);
+      addBlock(18, 0, 2, 3, 10, 0x7a7a80);
     },
-    parkur: function(){ // Parkur Haritası
+    parkur: function(){ // Parkur Haritası — more, bigger platforms
       groundMat.color.set(0x8a8f6e);
-      addBlock(0, -8, 3, 1, 10, 0x8e5a2b);
-      addBlock(8, -2, 10, 1, 3, 0x8e5a2b);
-      addBlock(8, 10, 3, 1, 10, 0x8e5a2b);
-      addBlock(0, 16, 10, 1, 3, 0x8e5a2b);
-      addBlock(-8, 10, 3, 1, 10, 0x8e5a2b);
-      addBlock(-8, -4, 3, 1, 6, 0x8e5a2b);
+      addBlock(0, -12, 4, 1.4, 14, 0x8e5a2b);
+      addBlock(12, -3, 14, 1.4, 4, 0x8e5a2b);
+      addBlock(12, 14, 4, 1.4, 14, 0x8e5a2b);
+      addBlock(0, 22, 14, 1.4, 4, 0x8e5a2b);
+      addBlock(-12, 14, 4, 1.4, 14, 0x8e5a2b);
+      addBlock(-12, -5, 4, 1.4, 8, 0x8e5a2b);
+      addBlock(-4, -20, 4, 1.4, 4, 0xa9772f);
     },
-    skatepark: function(){ // Skate Parkı
+    skatepark: function(){ // Skate Parkı — more ramps
       groundMat.color.set(0x8a8a90);
-      addBlock(6, -4, 4, 0.8, 4, 0xb0b0b8);
-      addBlock(-6, 4, 4, 1.2, 4, 0xb0b0b8);
-      addBlock(0, 10, 6, 0.6, 3, 0xb0b0b8);
-      addBlock(10, 8, 3, 1.6, 3, 0xb0b0b8);
+      addBlock(8, -6, 6, 1.2, 6, 0xb0b0b8);
+      addBlock(-8, 6, 6, 1.8, 6, 0xb0b0b8);
+      addBlock(0, 14, 9, 1, 4, 0xb0b0b8);
+      addBlock(14, 10, 4, 2.4, 4, 0xb0b0b8);
+      addBlock(-14, -8, 5, 1.4, 5, 0xb0b0b8);
+      addBlock(0, -16, 8, 0.8, 4, 0xb0b0b8);
     },
     classic: function(){
       groundMat.color.set(0xa3a2a5);
-      addBlock(10, -6, 4, 4, 4, 0xc0392b);
-      addBlock(-12, 8, 6, 2, 6, 0x2980b9);
-      addBlock(6, 14, 3, 6, 3, 0x27ae60);
-      addBlock(-8, -14, 5, 3, 5, 0xf39c12);
+      addBlock(14, -8, 6, 6, 6, 0xc0392b);
+      addBlock(-16, 10, 8, 3, 8, 0x2980b9);
+      addBlock(8, 18, 4, 8, 4, 0x27ae60);
+      addBlock(-10, -18, 7, 4, 7, 0xf39c12);
+      addBlock(20, 10, 4, 5, 4, 0x8e44ad);
+      addBlock(-20, -6, 5, 4, 5, 0x16a085);
     }
   };
 
