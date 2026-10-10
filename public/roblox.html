@@ -81,7 +81,9 @@
   grid.position.y = 0.01;
   scene.add(grid);
 
-  // Some simple blocks around for scale/reference
+  // Some simple blocks around for scale/reference — solid, so the character collides with them
+  var CHAR_RADIUS = 0.75;
+  var solidBlocks = [];
   function addBlock(x, z, w, h, d, color){
     var m = new THREE.Mesh(
       new THREE.BoxGeometry(w, h, d),
@@ -90,11 +92,20 @@
     m.position.set(x, h/2, z);
     m.castShadow = true; m.receiveShadow = true;
     scene.add(m);
+    solidBlocks.push({ x:x, z:z, halfW: w/2 + CHAR_RADIUS, halfD: d/2 + CHAR_RADIUS });
   }
   addBlock(10, -6, 4, 4, 4, 0xc0392b);
   addBlock(-12, 8, 6, 2, 6, 0x2980b9);
   addBlock(6, 14, 3, 6, 3, 0x27ae60);
   addBlock(-8, -14, 5, 3, 5, 0xf39c12);
+
+  function hitsSolid(x, z){
+    for (var i=0; i<solidBlocks.length; i++){
+      var b = solidBlocks[i];
+      if (Math.abs(x - b.x) < b.halfW && Math.abs(z - b.z) < b.halfD) return true;
+    }
+    return false;
+  }
 
   // ---- Roblox-style blocky character (R6-ish) ----
   var SKIN = 0xf5cd6a;
@@ -167,7 +178,7 @@
   var isGrounded = true;
   var GRAVITY = -32;
   var JUMP_SPEED = 11;
-  var MOVE_SPEED = 7;
+  var MOVE_SPEED = 12;
   var charFacing = 0; // radians
   var moving = false;
   var walkT = 0;
@@ -211,8 +222,8 @@
     requestAnimationFrame(animate);
     var dt = Math.min(clock.getDelta(), 0.05);
 
-    // movement relative to camera yaw
-    var fwd = new THREE.Vector3(Math.sin(camYaw), 0, Math.cos(camYaw));
+    // movement relative to camera yaw (fwd = away from camera, i.e. the direction the camera looks)
+    var fwd = new THREE.Vector3(-Math.sin(camYaw), 0, -Math.cos(camYaw));
     var right = new THREE.Vector3(Math.sin(camYaw + Math.PI/2), 0, Math.cos(camYaw + Math.PI/2));
     var move = new THREE.Vector3();
     if (keys['KeyW'] || keys['ArrowUp']) move.add(fwd);
@@ -223,8 +234,11 @@
     moving = move.lengthSq() > 0.0001;
     if (moving){
       move.normalize();
-      character.position.x += move.x * MOVE_SPEED * dt;
-      character.position.z += move.z * MOVE_SPEED * dt;
+      var stepX = move.x * MOVE_SPEED * dt;
+      var stepZ = move.z * MOVE_SPEED * dt;
+      var curX = character.position.x, curZ = character.position.z;
+      if (!hitsSolid(curX + stepX, curZ)) character.position.x = curX + stepX;
+      if (!hitsSolid(character.position.x, curZ + stepZ)) character.position.z = curZ + stepZ;
       var targetFacing = Math.atan2(move.x, move.z);
       // shortest-path rotation
       var diff = ((targetFacing - charFacing + Math.PI) % (Math.PI*2)) - Math.PI;
