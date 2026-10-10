@@ -177,7 +177,7 @@
 <div id="hud">
   <a href="/">⬅️ Düt Arena'ya Dön</a>
   <div id="room-badge" hidden>🎮 <span id="room-code-text"></span></div>
-  <div id="hint">WASD: Hareket • Shift: Koş • Boşluk: Zıpla (2x: Uç/Takla/Süper Zıplama) • E: Etkileşim • 1-4: Eşya Seç • G: Ver • F: Kılıç/Kalkan/Çekiç/Yumruk • L: Lazer • I: Zırh Kuşan • T: Çatırt (6 taş gerekir)</div>
+  <div id="hint">WASD: Hareket • Shift: Koş • Boşluk: Zıpla (2x: Uç/Takla/Süper Zıplama) • E: Etkileşim • 1-4: Eşya Seç • G: Ver • F: Kılıç/Kalkan/Çekiç/Yumruk • L: Lazer • I: Zırh Kuşan • T: Çatırt • N: Eldiven Animasyonu (6 taş gerekir)</div>
 </div>
 
 <div id="interact-prompt" hidden></div>
@@ -1166,6 +1166,7 @@
     if (e.code === 'KeyL') fireLaser();
     if (e.code === 'KeyI') toggleArmor();
     if (e.code === 'KeyT') doSnap();
+    if (e.code === 'KeyN') replayGauntletCutscene();
     if (e.code === 'Digit1') selectSlot(0);
     if (e.code === 'Digit2') selectSlot(1);
     if (e.code === 'Digit3') selectSlot(2);
@@ -1425,6 +1426,11 @@
       scene.add(mesh);
       return { mesh:mesh, fromOffset:from };
     });
+  }
+
+  function replayGauntletCutscene(){
+    if (!started || !hasGauntlet || inCutscene) return;
+    startGauntletCutscene();
   }
 
   function finishGauntletCutscene(){
