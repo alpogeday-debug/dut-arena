@@ -155,7 +155,7 @@
 <div id="hud">
   <a href="/">⬅️ Düt Arena'ya Dön</a>
   <div id="room-badge" hidden>🎮 <span id="room-code-text"></span></div>
-  <div id="hint">WASD: Hareket • Shift: Koş • Boşluk: Zıpla • E: Etkileşim • 1-4: Eşya Seç • G: Ver • F: Kılıç Salla</div>
+  <div id="hint">WASD: Hareket • Shift: Koş • Boşluk: Zıpla (2x: Uç) • E: Etkileşim • 1-4: Eşya Seç • G: Ver • F: Kılıç • L: Lazer • I: Zırh</div>
 </div>
 
 <div id="interact-prompt" hidden></div>
@@ -454,6 +454,17 @@
       addBlock(-10, -18, 7, 4, 7, 0xf39c12);
       addBlock(20, 10, 4, 5, 4, 0x8e44ad);
       addBlock(-20, -6, 5, 4, 5, 0x16a085);
+    },
+    kahraman: function(){ // Süper Kahraman Şehri — spaced-out skyscrapers, open sky to fly through
+      groundMat.color.set(0x5a5f6e);
+      addBlock(16, 14, 6, 26, 6, 0x4a6a8a);
+      addBlock(-16, 14, 5, 20, 5, 0x5a7a9a);
+      addBlock(16, -14, 5, 32, 5, 0x3a5a7a);
+      addBlock(-16, -14, 6, 16, 6, 0x6a8ab0);
+      addBlock(30, 0, 5, 22, 5, 0x4a6a8a);
+      addBlock(-30, 0, 5, 28, 5, 0x5a7a9a);
+      addBlock(0, 26, 6, 18, 6, 0x3a5a7a);
+      addBlock(0, -26, 5, 24, 5, 0x6a8ab0);
     }
   };
 
@@ -465,7 +476,8 @@
     balik: { label:'🎣 Olta At', msg:'🐟 Bir balık yakaladın:', item:{emoji:'🐟',name:'Balık'} },
     zombi: { label:'🔧 Barikat Kur', msg:'🧟 Barikatı sağlamlaştırdın, elinde:', item:{emoji:'🔧',name:'Alet'} },
     basketbol: { label:'🏀 Şut At', msg:'🏀 Potayı buldun!', item:null },
-    ada: { label:'🔥 Ateş Yak', msg:'🔥 Kamp ateşini yaktın, topladığın:', item:{emoji:'🪵',name:'Odun'} }
+    ada: { label:'🔥 Ateş Yak', msg:'🔥 Kamp ateşini yaktın, topladığın:', item:{emoji:'🪵',name:'Odun'} },
+    kahraman: { label:'💪 Güç Topla', msg:'⚡ Bir güç kristali buldun:', item:{emoji:'💎',name:'Güç Kristali'} }
   };
   function loadMap(mapId){
     mapMeshes.forEach(function(m){ scene.remove(m); });
@@ -668,7 +680,7 @@
     shadow.rotation.x = -Math.PI/2;
     shadow.position.y = 0.02;
     scene.add(shadow);
-    return { group:g, rightArm:rightArmR, shadow:shadow };
+    return { group:g, rightArm:rightArmR, shadow:shadow, torso:torsoM, head:headM };
   }
   function addRemotePlayer(p){
     if (remotePlayers[p.id]) return;
@@ -676,7 +688,7 @@
     built.group.position.set(p.x||0, p.y||0, p.z||0);
     built.group.rotation.y = p.ry||0;
     remotePlayers[p.id] = {
-      group: built.group, rightArm: built.rightArm, shadow: built.shadow,
+      group: built.group, rightArm: built.rightArm, shadow: built.shadow, torso: built.torso, head: built.head,
       attacking:false, attackT:0,
       target:{ x:p.x||0, y:p.y||0, z:p.z||0, ry:p.ry||0 }
     };
@@ -690,6 +702,16 @@
   }
   function clearRemotePlayers(){
     Object.keys(remotePlayers).forEach(removeRemotePlayer);
+  }
+  function flashRemoteArmor(rp){
+    var prevTorso = rp.torso.material.emissive.getHex();
+    var prevHead = rp.head.material.emissive.getHex();
+    rp.torso.material.emissive.setHex(0xcc2200);
+    rp.head.material.emissive.setHex(0xcc2200);
+    setTimeout(function(){
+      rp.torso.material.emissive.setHex(prevTorso);
+      rp.head.material.emissive.setHex(prevHead);
+    }, 400);
   }
 
   // ---- Networking (rooms, positions, chat) ----
@@ -737,7 +759,10 @@
         else appendChat('Sistem', (msg.fromName||'Biri') + ' sana bir ' + item.name + ' vermek istedi ama envanterin dolu.');
       } else if (msg.type === 'rbx-action'){
         var rpA = remotePlayers[msg.id];
-        if (rpA && msg.action === 'swing' && !rpA.attacking){ rpA.attacking = true; rpA.attackT = 0; }
+        if (!rpA) { /* no-op */ }
+        else if (msg.action === 'swing' && !rpA.attacking){ rpA.attacking = true; rpA.attackT = 0; }
+        else if (msg.action === 'laser'){ spawnLaserBeam(rpA.group, rpA.group.rotation.y); }
+        else if (msg.action === 'armor-on' || msg.action === 'armor-off'){ flashRemoteArmor(rpA); }
       }
     });
     ws.addEventListener('close', function(){ setTimeout(connectWs, 1500); });
@@ -863,7 +888,8 @@
     { id:'balik', icon:'🎣', title:'Balık Tut', grad:'#1e5fa8,#3a6a8a', rating:'👍 86%' },
     { id:'basketbol', icon:'🏀', title:'Basketbol Sahası', grad:'#b5652f,#e0e0e0', rating:'👍 90%' },
     { id:'parkur', icon:'🧗', title:'Parkur Haritası', grad:'#8a8f6e,#8e5a2b', rating:'👍 92%' },
-    { id:'skatepark', icon:'🛹', title:'Skate Parkı', grad:'#636e72,#b0b0b8', rating:'👍 89%' }
+    { id:'skatepark', icon:'🛹', title:'Skate Parkı', grad:'#636e72,#b0b0b8', rating:'👍 89%' },
+    { id:'kahraman', icon:'🦸', title:'Süper Kahraman Şehri', grad:'#c0392b,#f0b429', rating:'👍 98%' }
   ];
   var gameGrid = document.getElementById('game-grid');
   GAMES.forEach(function(game){
@@ -919,13 +945,24 @@
     var t = e.target;
     return t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA');
   }
+  var lastSpaceTapTime = 0;
   window.addEventListener('keydown', function(e){
     if (isTypingTarget(e)) return;
     keys[e.code] = true;
-    if (e.code === 'Space') e.preventDefault();
+    if (e.code === 'Space'){
+      e.preventDefault();
+      if (!e.repeat){
+        var now = performance.now();
+        if (now - lastSpaceTapTime < 350) toggleFly();
+        lastSpaceTapTime = now;
+      }
+    }
+    if (e.repeat) return;
     if (e.code === 'KeyE') tryInteract();
     if (e.code === 'KeyG') tryGive();
     if (e.code === 'KeyF') tryAttack();
+    if (e.code === 'KeyL') fireLaser();
+    if (e.code === 'KeyI') toggleArmor();
     if (e.code === 'Digit1') selectSlot(0);
     if (e.code === 'Digit2') selectSlot(1);
     if (e.code === 'Digit3') selectSlot(2);
@@ -952,6 +989,88 @@
     isAttacking = true;
     attackT = 0;
     sendOrQueue({ type:'rbx-action', action:'swing' });
+  }
+
+  // ---- Super Kahraman powers: flight, laser, armor ----
+  var isFlying = false;
+  var flyBobT = 0;
+  var isFiring = false;
+  var fireT = 0;
+  var FIRE_DURATION = 0.25;
+  var isArmored = false;
+  var armorAnimT = 0;
+  var armorAnimating = false;
+  var ARMOR_ANIM_DURATION = 0.7;
+  var armorPieces = []; // { mesh, from, to }
+
+  function toggleFly(){
+    if (!started) return;
+    isFlying = !isFlying;
+    if (isFlying){ velocityY = 0; }
+  }
+
+  function fireLaser(){
+    if (!started || isFiring) return;
+    isFiring = true;
+    fireT = 0;
+    spawnLaserBeam(character, charFacing);
+    sendOrQueue({ type:'rbx-action', action:'laser' });
+  }
+
+  function spawnLaserBeam(ownerCharOrGroup, facingAngle){
+    var dir = new THREE.Vector3(Math.sin(facingAngle), 0, Math.cos(facingAngle));
+    var length = 22;
+    var geo = new THREE.CylinderGeometry(0.09, 0.09, length, 8);
+    geo.rotateX(Math.PI/2); // cylinder default is y-up, we want it along local z
+    geo.translate(0, 0, length/2);
+    var mat = new THREE.MeshBasicMaterial({ color:0xff3b3b, transparent:true, opacity:0.9 });
+    var beam = new THREE.Mesh(geo, mat);
+    var handPos = new THREE.Vector3(1.3, 3.0, 0).applyAxisAngle(new THREE.Vector3(0,1,0), ownerCharOrGroup.rotation.y);
+    beam.position.copy(ownerCharOrGroup.position).add(handPos);
+    beam.rotation.y = facingAngle;
+    scene.add(beam);
+    activeLasers.push({ mesh:beam, t:0 });
+  }
+  var activeLasers = [];
+
+  function toggleArmor(){
+    if (!started || armorAnimating) return;
+    isArmored = !isArmored;
+    armorAnimating = true;
+    armorAnimT = 0;
+    buildArmorPieces(isArmored);
+    sendOrQueue({ type:'rbx-action', action: isArmored ? 'armor-on' : 'armor-off' });
+  }
+
+  function armorPieceMesh(){
+    return new THREE.Mesh(
+      new THREE.BoxGeometry(0.5, 0.5, 0.2),
+      new THREE.MeshStandardMaterial({ color:0xc0392b, metalness:0.7, roughness:0.25, emissive:0x330000 })
+    );
+  }
+  function buildArmorPieces(equipping){
+    armorPieces.forEach(function(p){ if (p.mesh.parent) p.mesh.parent.remove(p.mesh); });
+    armorPieces = [];
+    var defs = [
+      { parent:torso, local:new THREE.Vector3(0, 0.3, 0.55) },
+      { parent:torso, local:new THREE.Vector3(0, -0.6, 0.55) },
+      { parent:leftArm, local:new THREE.Vector3(0, -0.3, 0.35) },
+      { parent:rightArm, local:new THREE.Vector3(0, -0.3, 0.35) },
+      { parent:head, local:new THREE.Vector3(0, 0, 0.75) }
+    ];
+    defs.forEach(function(d){
+      var m = armorPieceMesh();
+      m.castShadow = true;
+      d.parent.add(m);
+      var farPoint = d.local.clone().multiplyScalar(6).add(new THREE.Vector3((Math.random()-0.5)*4, 4+Math.random()*3, (Math.random()-0.5)*4));
+      if (equipping){
+        m.position.copy(farPoint);
+        armorPieces.push({ mesh:m, from:farPoint, to:d.local.clone() });
+      } else {
+        m.position.copy(d.local);
+        armorPieces.push({ mesh:m, from:d.local.clone(), to:farPoint, remove:true });
+      }
+    });
   }
   var charFacing = 0; // radians
   var moving = false;
@@ -1012,11 +1131,12 @@
     MOVE_SPEED = running ? RUN_SPEED : WALK_SPEED;
     if (moving){
       move.normalize();
-      var stepX = move.x * MOVE_SPEED * dt;
-      var stepZ = move.z * MOVE_SPEED * dt;
+      var flySpeed = isFlying ? RUN_SPEED * 1.3 : MOVE_SPEED;
+      var stepX = move.x * flySpeed * dt;
+      var stepZ = move.z * flySpeed * dt;
       var curX = character.position.x, curZ = character.position.z;
-      if (!hitsSolid(curX + stepX, curZ)) character.position.x = curX + stepX;
-      if (!hitsSolid(character.position.x, curZ + stepZ)) character.position.z = curZ + stepZ;
+      if (isFlying || !hitsSolid(curX + stepX, curZ)) character.position.x = curX + stepX;
+      if (isFlying || !hitsSolid(character.position.x, curZ + stepZ)) character.position.z = curZ + stepZ;
       var targetFacing = Math.atan2(move.x, move.z);
       // shortest-path rotation
       var diff = ((targetFacing - charFacing + Math.PI) % (Math.PI*2)) - Math.PI;
@@ -1027,17 +1147,28 @@
       walkT += dt * 2;
     }
 
-    // jump / gravity
-    if (started && keys['Space'] && isGrounded){
-      velocityY = JUMP_SPEED;
-      isGrounded = false;
-    }
-    velocityY += GRAVITY * dt;
-    character.position.y += velocityY * dt;
-    if (character.position.y <= 0){
-      character.position.y = 0;
+    // jump / gravity / flight
+    if (isFlying){
+      var VSPEED = 11;
+      if (keys['Space']) character.position.y += VSPEED * dt;
+      if (keys['ControlLeft'] || keys['ControlRight']) character.position.y -= VSPEED * dt;
+      flyBobT += dt;
+      character.position.y += Math.sin(flyBobT * 3) * 0.012;
+      if (character.position.y < 1.2) character.position.y = 1.2;
       velocityY = 0;
-      isGrounded = true;
+      isGrounded = false;
+    } else {
+      if (started && keys['Space'] && isGrounded){
+        velocityY = JUMP_SPEED;
+        isGrounded = false;
+      }
+      velocityY += GRAVITY * dt;
+      character.position.y += velocityY * dt;
+      if (character.position.y <= 0){
+        character.position.y = 0;
+        velocityY = 0;
+        isGrounded = true;
+      }
     }
 
     // animation
@@ -1059,12 +1190,45 @@
       leftLeg.rotation.x = 0;
       rightLeg.rotation.x = 0;
     }
+    if (isFlying){
+      character.rotation.x = -0.32;
+      leftArm.rotation.x = -1.5; rightArm.rotation.x = -1.5;
+      leftArm.rotation.z = 0.15; rightArm.rotation.z = -0.15;
+      leftLeg.rotation.x = 1.5; rightLeg.rotation.x = 1.5;
+    } else {
+      character.rotation.x = 0;
+      leftArm.rotation.z = 0; rightArm.rotation.z = 0;
+    }
     if (isAttacking){
       attackT += dt;
       var ap = Math.min(1, attackT / ATTACK_DURATION);
       rightArm.rotation.x = -0.3 - Math.sin(ap * Math.PI) * 2.1;
       rightArm.rotation.z = -Math.sin(ap * Math.PI) * 0.8;
       if (attackT >= ATTACK_DURATION){ isAttacking = false; rightArm.rotation.z = 0; }
+    }
+    if (isFiring){
+      fireT += dt;
+      rightArm.rotation.x = -1.5;
+      if (fireT >= FIRE_DURATION) isFiring = false;
+    }
+    if (armorAnimating){
+      armorAnimT += dt;
+      var arp = Math.min(1, armorAnimT / ARMOR_ANIM_DURATION);
+      var eased = 1 - Math.pow(1 - arp, 3);
+      armorPieces.forEach(function(p){
+        p.mesh.position.lerpVectors(p.from, p.to, eased);
+      });
+      if (arp >= 1){
+        armorAnimating = false;
+        armorPieces.forEach(function(p){
+          if (p.remove && p.mesh.parent) p.mesh.parent.remove(p.mesh);
+        });
+        if (!isArmored) armorPieces = [];
+      }
+    }
+    activeLasers.forEach(function(l){ l.t += dt; l.mesh.material.opacity = Math.max(0, 0.9 - l.t*3); l.mesh.scale.z = 1; });
+    for (var li = activeLasers.length - 1; li >= 0; li--){
+      if (activeLasers[li].t > 0.3){ scene.remove(activeLasers[li].mesh); activeLasers.splice(li, 1); }
     }
     charShadow.position.x = character.position.x;
     charShadow.position.z = character.position.z;
