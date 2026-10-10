@@ -152,6 +152,30 @@
     background:#14111fcc;
     z-index:6;
   }
+  #mobile-joystick{
+    position:fixed;
+    left:calc(24px + env(safe-area-inset-left,0px));
+    bottom:calc(28px + env(safe-area-inset-bottom,0px));
+    width:120px;
+    height:120px;
+    border-radius:50%;
+    background:#14111f99;
+    border:2px solid var(--panel-border);
+    z-index:6;
+    touch-action:none;
+  }
+  #joystick-knob{
+    position:absolute;
+    left:50%; top:50%;
+    width:52px; height:52px;
+    margin:-26px 0 0 -26px;
+    border-radius:50%;
+    background:var(--accent)cc;
+    border:2px solid var(--panel-border);
+  }
+  @media (hover:hover) and (pointer:fine){
+    #mobile-joystick{ display:none; }
+  }
   #hint-bar{
     bottom:calc(16px + env(safe-area-inset-bottom,0px));
     left:50%;
@@ -865,6 +889,10 @@
 <canvas id="arena" hidden></canvas>
 <canvas id="minimap" width="90" height="90" hidden></canvas>
 
+<div id="mobile-joystick" hidden>
+  <div id="joystick-knob"></div>
+</div>
+
 <div class="hud" id="title-hud" hidden>
   <h1 id="title-link" role="button" tabindex="0">DÜT ARENA</h1>
   <div id="player-count">1 OYUNCU</div>
@@ -1084,6 +1112,8 @@
   const ctx = canvas.getContext('2d');
   const minimapCanvas = document.getElementById('minimap');
   const minimapCtx = minimapCanvas.getContext('2d');
+  const joystickEl = document.getElementById('mobile-joystick');
+  const joystickKnob = document.getElementById('joystick-knob');
   const musicBtn = document.getElementById('music-btn');
   const playerCountEl = document.getElementById('player-count');
   const connNote = document.getElementById('conn-note');
@@ -1212,7 +1242,7 @@
     name: document.getElementById('screen-name'),
     profile: document.getElementById('screen-profile'),
   };
-  const gameEls = [canvas, titleHud, hintBar, honkBtn, chatBox, scoreHud, minimapCanvas, emojiRow];
+  const gameEls = [canvas, titleHud, hintBar, honkBtn, chatBox, scoreHud, minimapCanvas, emojiRow, joystickEl];
 
   const ADJ = ['Hızlı','Neon','Gölge','Turbo','Meraklı','Cesur','Sessiz','Parlak','Vahşi','Şanslı'];
   const NOUN = ['Tilki','Kedi','Kartal','Robot','Şahin','Kaplan','Ejder','Baykuş','Kurt','Roket'];
@@ -2091,6 +2121,52 @@
   }, {passive:true});
   canvas.addEventListener('touchend', () => { touchTarget = null; }, {passive:true});
 
+  let joyActive = false;
+  let joyTouchId = null;
+  let joyDX = 0, joyDY = 0;
+  const JOY_RADIUS = 46;
+  function joyUpdate(clientX, clientY){
+    const rect = joystickEl.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    let dx = clientX - cx, dy = clientY - cy;
+    const dist = Math.hypot(dx, dy);
+    if (dist > JOY_RADIUS) { dx = (dx / dist) * JOY_RADIUS; dy = (dy / dist) * JOY_RADIUS; }
+    joystickKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+    joyDX = dx / JOY_RADIUS;
+    joyDY = dy / JOY_RADIUS;
+  }
+  function joyReset(){
+    joyActive = false;
+    joyTouchId = null;
+    joyDX = 0; joyDY = 0;
+    joystickKnob.style.transform = 'translate(0, 0)';
+  }
+  joystickEl.addEventListener('touchstart', (e) => {
+    const t = e.changedTouches[0];
+    joyActive = true;
+    joyTouchId = t.identifier;
+    joyUpdate(t.clientX, t.clientY);
+  }, {passive:true});
+  window.addEventListener('touchmove', (e) => {
+    if (!joyActive) return;
+    for (const t of e.changedTouches) {
+      if (t.identifier === joyTouchId) { joyUpdate(t.clientX, t.clientY); break; }
+    }
+  }, {passive:true});
+  window.addEventListener('touchend', (e) => {
+    if (!joyActive) return;
+    for (const t of e.changedTouches) {
+      if (t.identifier === joyTouchId) { joyReset(); break; }
+    }
+  }, {passive:true});
+  window.addEventListener('touchcancel', (e) => {
+    if (!joyActive) return;
+    for (const t of e.changedTouches) {
+      if (t.identifier === joyTouchId) { joyReset(); break; }
+    }
+  }, {passive:true});
+
   let audioCtx = null;
   function ensureAudio(){
     if (!audioCtx) {
@@ -2497,11 +2573,13 @@
     if (keys['s'] || keys['arrowdown']) dy += 1;
     if (keys['a'] || keys['arrowleft']) dx -= 1;
     if (keys['d'] || keys['arrowright']) dx += 1;
+    if (dx === 0 && dy === 0 && joyActive && (joyDX || joyDY)) { dx = joyDX; dy = joyDY; }
 
     if (dx !== 0 || dy !== 0) {
       const len = Math.hypot(dx, dy);
-      const nx = player.x + (dx / len) * spd * dt;
-      const ny = player.y + (dy / len) * spd * dt;
+      const factor = Math.min(len, 1) / len; // analog-friendly: joystick keeps partial speed, keyboard still normalizes to full speed
+      const nx = player.x + (dx * factor) * spd * dt;
+      const ny = player.y + (dy * factor) * spd * dt;
       if (!hitsWall(nx, player.y)) player.x = nx;
       if (!hitsWall(player.x, ny)) player.y = ny;
     } else if (touchTarget) {
