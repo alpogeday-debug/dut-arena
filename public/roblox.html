@@ -216,8 +216,23 @@
 <div id="start-screen">
   <div class="start-card wide">
     <div class="home-top-row">
-      <h1>🎮 Düt Dünyası</h1>
-      <div style="display:flex; gap:8px;">
+      <h1 id="page-h1">🎮 Düt Dünyası</h1>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <select id="rbx-lang-select" aria-label="Dil / Language">
+          <option value="tr">🇹🇷 Türkçe</option>
+          <option value="en">🇬🇧 English</option>
+          <option value="de">🇩🇪 Deutsch</option>
+          <option value="fr">🇫🇷 Français</option>
+          <option value="es">🇪🇸 Español</option>
+          <option value="it">🇮🇹 Italiano</option>
+          <option value="pt">🇵🇹 Português</option>
+          <option value="ru">🇷🇺 Русский</option>
+          <option value="ar">🇸🇦 العربية</option>
+          <option value="zh">🇨🇳 中文</option>
+          <option value="ja">🇯🇵 日本語</option>
+          <option value="ko">🇰🇷 한국어</option>
+          <option value="hi">🇮🇳 हिन्दी</option>
+        </select>
         <button type="button" class="ghost-btn" id="achv-btn">🏆 Başarımlar</button>
         <button type="button" class="ghost-btn" id="avatar-btn">🧑 Avatar</button>
       </div>
@@ -225,17 +240,17 @@
     <div class="name-row">
       <input type="text" id="name-input" maxlength="20" placeholder="Görünecek adın">
     </div>
-    <p class="lobby-hint">Bir oyun seç, katıldığın herkesle aynı dünyaya düşersin</p>
+    <p class="lobby-hint" id="subtitle-hint">Bir oyun seç, katıldığın herkesle aynı dünyaya düşersin</p>
     <div class="game-grid" id="game-grid"></div>
   </div>
 </div>
 
 <div id="avatar-screen">
   <div class="start-card">
-    <h2>🧑 Avatarını Özelleştir</h2>
-    <p class="lobby-hint">Üst (Gömlek)</p>
+    <h2 id="avatar-title-text">🧑 Avatarını Özelleştir</h2>
+    <p class="lobby-hint" id="avatar-shirt-label">Üst (Gömlek)</p>
     <div class="swatch-row" id="shirt-swatches"></div>
-    <p class="lobby-hint">Alt (Pantolon)</p>
+    <p class="lobby-hint" id="avatar-pants-label">Alt (Pantolon)</p>
     <div class="swatch-row" id="pants-swatches"></div>
     <button type="button" class="lobby-btn" id="avatar-close-btn">Kaydet ve Kapat</button>
   </div>
@@ -243,7 +258,7 @@
 
 <div id="achv-screen">
   <div class="start-card wide">
-    <h2>🏆 Başarımlar</h2>
+    <h2 id="achv-title-text">🏆 Başarımlar</h2>
     <div class="game-grid" id="achv-grid"></div>
     <button type="button" class="ghost-btn" id="achv-close-btn" style="margin-top:14px;">Kapat</button>
   </div>
@@ -251,14 +266,14 @@
 
 <div id="hero-screen">
   <div class="start-card">
-    <h2>🦸 Kahramanını Seç</h2>
+    <h2 id="hero-title-text">🦸 Kahramanını Seç</h2>
     <div class="game-grid" id="hero-grid"></div>
     <button type="button" class="ghost-btn" id="hero-cancel-btn" style="margin-top:14px;">Vazgeç</button>
   </div>
 </div>
 
 <div id="hud">
-  <a href="/">⬅️ Düt Arena'ya Dön</a>
+  <a href="/" id="hud-back-link">⬅️ Düt Arena'ya Dön</a>
   <div id="room-badge" hidden>🎮 <span id="room-code-text"></span></div>
   <button type="button" id="photo-btn" hidden title="Anı Yakala (P)">📸</button>
   <div id="hint">WASD: Hareket • Shift: Koş • Boşluk: Zıpla (2x: Uç/Takla/Süper Zıplama) • E: Etkileşim • 1-4: Eşya Seç • G: Ver (Strange: Gelecek Portalı) • X: Geçmiş Portalı (Strange) • F: Kılıç/Kalkan/Çekiç/Yumruk/Portal • L: Lazer • I: Zırh Kuşan • T: Çatırt (zamanı herkes için geri sarar) • N: Eldiven Animasyonu • P: Anı Yakala (6 taş gerekir)</div>
@@ -301,6 +316,10 @@
 <script>
 (function(){
   "use strict";
+
+  var TRANSLATIONS = {"tr":{"page_title":"Düt Dünyası","subtitle_hint":"Bir oyun seç, katıldığın herkesle aynı dünyaya düşersin","name_placeholder":"Görünecek adın","btn_achievements":"🏆 Başarımlar","btn_avatar":"🧑 Avatar","avatar_title":"🧑 Avatarını Özelleştir","avatar_shirt_label":"Üst (Gömlek)","avatar_pants_label":"Alt (Pantolon)","avatar_save_btn":"Kaydet ve Kapat","achv_title":"🏆 Başarımlar","achv_close_btn":"Kapat","hero_title":"🦸 Kahramanını Seç","hero_cancel_btn":"Vazgeç","hud_back_link":"⬅️ Düt Arena'ya Dön","hud_hint":"WASD: Hareket • Shift: Koş • Boşluk: Zıpla (2x: Uç/Takla/Süper Zıplama) • E: Etkileşim • 1-4: Eşya Seç • G: Ver (Strange: Gelecek Portalı) • X: Geçmiş Portalı (Strange) • F: Kılıç/Kalkan/Çekiç/Yumruk/Portal • L: Lazer • I: Zırh Kuşan • T: Çatırt (zamanı herkes için geri sarar) • N: Eldiven Animasyonu • P: Anı Yakala (6 taş gerekir)","chat_placeholder":"Mesaj yaz, Enter'a bas...","game_kacis":"Kaçış Binası","game_ciftlik":"Evcil Hayvan Çiftliği","game_kule":"Zorluk Kulesi","game_mahalle":"Komşu Mahallesi","game_arena":"Savaş Arenası","game_yaris":"Yarış Pisti","game_ada":"Hayatta Kalma Adası","game_restoran":"Restoranını İşlet","game_ajan":"Gizli Ajan","game_sehir":"Şehir İnşa Et","game_zombi":"Zombi Kaçışı","game_balik":"Balık Tut","game_basketbol":"Basketbol Sahası","game_parkur":"Parkur Haritası","game_skatepark":"Skate Parkı","game_kahraman":"Süper Kahraman Şehri","hero_ironman":"Çelik Şahin","hero_captain":"Yıldız Nöbetçi","hero_thor":"Şimşek Beyi","hero_hulk":"Yeşil Öfke","hero_strange":"Boyut Gezgini","stone_power":"Güç Taşı","stone_space":"Uzay Taşı","stone_reality":"Gerçeklik Taşı","stone_soul":"Ruh Taşı","stone_mind":"Zihin Taşı","stone_time":"Zaman Taşı","achv_first_join_t":"İlk Adım","achv_first_join_d":"Bir dünyaya ilk kez girdin","achv_first_stone_t":"İlk Taş","achv_first_stone_d":"İlk Ebedi Taşı'nı buldun","achv_three_stones_t":"Taş Avcısı","achv_three_stones_d":"3 Ebedi Taş topladın","achv_gauntlet_t":"Ebedi Eldiven","achv_gauntlet_d":"6 taşı da toplayıp eldiveni tamamladın","achv_snap_t":"Çatırt!","achv_snap_d":"Çatırt yeteneğini kullandın","achv_flyer_t":"Gökyüzü Fatihi","achv_flyer_d":"İlk kez uçtun","achv_portal_t":"Portal Gezgini","achv_portal_d":"Bir portaldan geçip başka dünyaya geçtin","achv_giver_t":"Cömert","achv_giver_d":"Başka bir oyuncuya eşya verdin","achv_collector_t":"Hediye Avcısı","achv_collector_d":"Toplamda 10 eşya topladın","achv_fighter_t":"Savaşçı","achv_fighter_d":"Saldırı hareketini 20 kez kullandın","achv_thanos_defeated_t":"Thanos'u Yendin","achv_thanos_defeated_d":"Çatırt portalından geçip Thanos'u yendin"},"en":{"page_title":"Dut World","subtitle_hint":"Pick a game — everyone who joins lands in the same world","name_placeholder":"Your display name","btn_achievements":"🏆 Achievements","btn_avatar":"🧑 Avatar","avatar_title":"🧑 Customize Your Avatar","avatar_shirt_label":"Top (Shirt)","avatar_pants_label":"Bottom (Pants)","avatar_save_btn":"Save & Close","achv_title":"🏆 Achievements","achv_close_btn":"Close","hero_title":"🦸 Choose Your Hero","hero_cancel_btn":"Cancel","hud_back_link":"⬅️ Back to Dut Arena","hud_hint":"WASD: Move • Shift: Run • Space: Jump (2x: Fly/Flip/Super Jump) • E: Interact • 1-4: Select Item • G: Give (Strange: Future Portal) • X: Past Portal (Strange) • F: Sword/Shield/Hammer/Fist/Portal • L: Laser • I: Suit Up • T: Snap (rewinds time for everyone) • N: Gauntlet Animation • P: Capture Moment (needs 6 stones)","chat_placeholder":"Type a message, press Enter...","game_kacis":"Escape Building","game_ciftlik":"Pet Farm","game_kule":"Challenge Tower","game_mahalle":"Neighbor Town","game_arena":"Battle Arena","game_yaris":"Race Track","game_ada":"Survival Island","game_restoran":"Run Your Restaurant","game_ajan":"Secret Agent","game_sehir":"Build a City","game_zombi":"Zombie Escape","game_balik":"Go Fishing","game_basketbol":"Basketball Court","game_parkur":"Parkour Map","game_skatepark":"Skate Park","game_kahraman":"Super Hero City","hero_ironman":"Steel Hawk","hero_captain":"Star Sentinel","hero_thor":"Lord of Thunder","hero_hulk":"Green Rage","hero_strange":"Dimension Walker","stone_power":"Power Stone","stone_space":"Space Stone","stone_reality":"Reality Stone","stone_soul":"Soul Stone","stone_mind":"Mind Stone","stone_time":"Time Stone","achv_first_join_t":"First Step","achv_first_join_d":"Entered a world for the first time","achv_first_stone_t":"First Stone","achv_first_stone_d":"Found your first Eternal Stone","achv_three_stones_t":"Stone Hunter","achv_three_stones_d":"Collected 3 Eternal Stones","achv_gauntlet_t":"Eternal Gauntlet","achv_gauntlet_d":"Collected all 6 stones and completed the gauntlet","achv_snap_t":"Snap!","achv_snap_d":"Used the Snap ability","achv_flyer_t":"Sky Conqueror","achv_flyer_d":"Flew for the first time","achv_portal_t":"Portal Traveler","achv_portal_d":"Went through a portal into another world","achv_giver_t":"Generous","achv_giver_d":"Gave an item to another player","achv_collector_t":"Gift Hunter","achv_collector_d":"Collected 10 items in total","achv_fighter_t":"Fighter","achv_fighter_d":"Used your attack move 20 times","achv_thanos_defeated_t":"Defeated Thanos","achv_thanos_defeated_d":"Went through the Snap portal and defeated Thanos"},"de":{"page_title":"Dut-Welt","subtitle_hint":"Wähle ein Spiel — alle, die beitreten, landen in derselben Welt","name_placeholder":"Dein Anzeigename","btn_achievements":"🏆 Erfolge","btn_avatar":"🧑 Avatar","avatar_title":"🧑 Avatar anpassen","avatar_shirt_label":"Oben (Hemd)","avatar_pants_label":"Unten (Hose)","avatar_save_btn":"Speichern & Schließen","achv_title":"🏆 Erfolge","achv_close_btn":"Schließen","hero_title":"🦸 Wähle deinen Helden","hero_cancel_btn":"Abbrechen","hud_back_link":"⬅️ Zurück zu Dut Arena","hud_hint":"WASD: Bewegen • Shift: Rennen • Leertaste: Springen (2x: Fliegen/Flip/Superspringen) • E: Interagieren • 1-4: Gegenstand wählen • G: Geben (Strange: Zukunftsportal) • X: Vergangenheitsportal (Strange) • F: Schwert/Schild/Hammer/Faust/Portal • L: Laser • I: Rüstung anlegen • T: Schnipsen (dreht die Zeit für alle zurück) • N: Handschuh-Animation • P: Moment festhalten (braucht 6 Steine)","chat_placeholder":"Nachricht eingeben, Enter drücken...","game_kacis":"Fluchtgebäude","game_ciftlik":"Tierfarm","game_kule":"Herausforderungsturm","game_mahalle":"Nachbarschaft","game_arena":"Kampfarena","game_yaris":"Rennstrecke","game_ada":"Überlebensinsel","game_restoran":"Dein Restaurant","game_ajan":"Geheimagent","game_sehir":"Stadt bauen","game_zombi":"Zombie-Flucht","game_balik":"Angeln","game_basketbol":"Basketballplatz","game_parkur":"Parkour-Karte","game_skatepark":"Skatepark","game_kahraman":"Superhelden-Stadt","hero_ironman":"Stahlfalke","hero_captain":"Sternenwächter","hero_thor":"Herr des Donners","hero_hulk":"Grüner Zorn","hero_strange":"Dimensionswanderer","stone_power":"Machtstein","stone_space":"Raumstein","stone_reality":"Realitätsstein","stone_soul":"Seelenstein","stone_mind":"Verstandsstein","stone_time":"Zeitstein","achv_first_join_t":"Erster Schritt","achv_first_join_d":"Zum ersten Mal eine Welt betreten","achv_first_stone_t":"Erster Stein","achv_first_stone_d":"Deinen ersten Ewigen Stein gefunden","achv_three_stones_t":"Steinjäger","achv_three_stones_d":"3 Ewige Steine gesammelt","achv_gauntlet_t":"Ewiger Handschuh","achv_gauntlet_d":"Alle 6 Steine gesammelt und den Handschuh vervollständigt","achv_snap_t":"Schnips!","achv_snap_d":"Die Schnips-Fähigkeit benutzt","achv_flyer_t":"Himmelsbezwinger","achv_flyer_d":"Zum ersten Mal geflogen","achv_portal_t":"Portalreisender","achv_portal_d":"Durch ein Portal in eine andere Welt gereist","achv_giver_t":"Großzügig","achv_giver_d":"Einem anderen Spieler einen Gegenstand gegeben","achv_collector_t":"Geschenkjäger","achv_collector_d":"Insgesamt 10 Gegenstände gesammelt","achv_fighter_t":"Kämpfer","achv_fighter_d":"Deinen Angriff 20-mal benutzt","achv_thanos_defeated_t":"Thanos besiegt","achv_thanos_defeated_d":"Durch das Schnips-Portal gegangen und Thanos besiegt"},"fr":{"page_title":"Monde Dut","subtitle_hint":"Choisis un jeu — tous ceux qui te rejoignent arrivent dans le même monde","name_placeholder":"Ton nom affiché","btn_achievements":"🏆 Succès","btn_avatar":"🧑 Avatar","avatar_title":"🧑 Personnalise ton avatar","avatar_shirt_label":"Haut (Chemise)","avatar_pants_label":"Bas (Pantalon)","avatar_save_btn":"Enregistrer et fermer","achv_title":"🏆 Succès","achv_close_btn":"Fermer","hero_title":"🦸 Choisis ton héros","hero_cancel_btn":"Annuler","hud_back_link":"⬅️ Retour à Dut Arena","hud_hint":"WASD : Déplacer • Shift : Courir • Espace : Sauter (2x : Voler/Flip/Super saut) • E : Interagir • 1-4 : Choisir objet • G : Donner (Strange : Portail futur) • X : Portail passé (Strange) • F : Épée/Bouclier/Marteau/Poing/Portail • L : Laser • I : Enfiler l'armure • T : Claquement (remonte le temps pour tous) • N : Animation du gant • P : Capturer le moment (6 pierres requises)","chat_placeholder":"Écris un message, appuie sur Entrée...","game_kacis":"Immeuble d'évasion","game_ciftlik":"Ferme animalière","game_kule":"Tour du défi","game_mahalle":"Quartier voisin","game_arena":"Arène de combat","game_yaris":"Piste de course","game_ada":"Île de survie","game_restoran":"Gère ton restaurant","game_ajan":"Agent secret","game_sehir":"Construis une ville","game_zombi":"Évasion zombie","game_balik":"Va pêcher","game_basketbol":"Terrain de basket","game_parkur":"Carte de parkour","game_skatepark":"Skatepark","game_kahraman":"Ville des super-héros","hero_ironman":"Faucon d'Acier","hero_captain":"Sentinelle Étoilée","hero_thor":"Seigneur du Tonnerre","hero_hulk":"Rage Verte","hero_strange":"Voyageur Dimensionnel","stone_power":"Pierre du Pouvoir","stone_space":"Pierre de l'Espace","stone_reality":"Pierre de la Réalité","stone_soul":"Pierre de l'Âme","stone_mind":"Pierre de l'Esprit","stone_time":"Pierre du Temps","achv_first_join_t":"Premier Pas","achv_first_join_d":"Entré dans un monde pour la première fois","achv_first_stone_t":"Première Pierre","achv_first_stone_d":"Trouvé ta première Pierre Éternelle","achv_three_stones_t":"Chasseur de Pierres","achv_three_stones_d":"Collecté 3 Pierres Éternelles","achv_gauntlet_t":"Gant Éternel","achv_gauntlet_d":"Collecté les 6 pierres et complété le gant","achv_snap_t":"Claquement !","achv_snap_d":"Utilisé la capacité Claquement","achv_flyer_t":"Conquérant du Ciel","achv_flyer_d":"Volé pour la première fois","achv_portal_t":"Voyageur de Portail","achv_portal_d":"Traversé un portail vers un autre monde","achv_giver_t":"Généreux","achv_giver_d":"Donné un objet à un autre joueur","achv_collector_t":"Chasseur de Cadeaux","achv_collector_d":"Collecté 10 objets au total","achv_fighter_t":"Combattant","achv_fighter_d":"Utilisé ton attaque 20 fois","achv_thanos_defeated_t":"Thanos Vaincu","achv_thanos_defeated_d":"Traversé le portail du Claquement et vaincu Thanos"},"es":{"page_title":"Mundo Dut","subtitle_hint":"Elige un juego: todos los que se unan llegan al mismo mundo","name_placeholder":"Tu nombre visible","btn_achievements":"🏆 Logros","btn_avatar":"🧑 Avatar","avatar_title":"🧑 Personaliza tu avatar","avatar_shirt_label":"Arriba (Camisa)","avatar_pants_label":"Abajo (Pantalón)","avatar_save_btn":"Guardar y cerrar","achv_title":"🏆 Logros","achv_close_btn":"Cerrar","hero_title":"🦸 Elige tu héroe","hero_cancel_btn":"Cancelar","hud_back_link":"⬅️ Volver a Dut Arena","hud_hint":"WASD: Moverse • Shift: Correr • Espacio: Saltar (2x: Volar/Voltereta/Supersalto) • E: Interactuar • 1-4: Elegir objeto • G: Dar (Strange: Portal futuro) • X: Portal pasado (Strange) • F: Espada/Escudo/Martillo/Puño/Portal • L: Láser • I: Ponerse la armadura • T: Chasquido (rebobina el tiempo para todos) • N: Animación del guantelete • P: Capturar momento (necesita 6 piedras)","chat_placeholder":"Escribe un mensaje, pulsa Enter...","game_kacis":"Edificio de Escape","game_ciftlik":"Granja de Mascotas","game_kule":"Torre del Desafío","game_mahalle":"Barrio Vecino","game_arena":"Arena de Batalla","game_yaris":"Pista de Carreras","game_ada":"Isla de Supervivencia","game_restoran":"Dirige tu Restaurante","game_ajan":"Agente Secreto","game_sehir":"Construye una Ciudad","game_zombi":"Escape Zombi","game_balik":"Ir a Pescar","game_basketbol":"Cancha de Baloncesto","game_parkur":"Mapa de Parkour","game_skatepark":"Skatepark","game_kahraman":"Ciudad de Superhéroes","hero_ironman":"Halcón de Acero","hero_captain":"Centinela Estelar","hero_thor":"Señor del Trueno","hero_hulk":"Furia Verde","hero_strange":"Viajero Dimensional","stone_power":"Gema del Poder","stone_space":"Gema del Espacio","stone_reality":"Gema de la Realidad","stone_soul":"Gema del Alma","stone_mind":"Gema de la Mente","stone_time":"Gema del Tiempo","achv_first_join_t":"Primer Paso","achv_first_join_d":"Entraste a un mundo por primera vez","achv_first_stone_t":"Primera Gema","achv_first_stone_d":"Encontraste tu primera Gema Eterna","achv_three_stones_t":"Cazador de Gemas","achv_three_stones_d":"Recolectaste 3 Gemas Eternas","achv_gauntlet_t":"Guantelete Eterno","achv_gauntlet_d":"Recolectaste las 6 gemas y completaste el guantelete","achv_snap_t":"¡Chasquido!","achv_snap_d":"Usaste la habilidad Chasquido","achv_flyer_t":"Conquistador del Cielo","achv_flyer_d":"Volaste por primera vez","achv_portal_t":"Viajero de Portales","achv_portal_d":"Cruzaste un portal hacia otro mundo","achv_giver_t":"Generoso","achv_giver_d":"Le diste un objeto a otro jugador","achv_collector_t":"Cazador de Regalos","achv_collector_d":"Recolectaste 10 objetos en total","achv_fighter_t":"Luchador","achv_fighter_d":"Usaste tu ataque 20 veces","achv_thanos_defeated_t":"Derrotaste a Thanos","achv_thanos_defeated_d":"Cruzaste el portal del Chasquido y derrotaste a Thanos"},"it":{"page_title":"Mondo Dut","subtitle_hint":"Scegli un gioco: tutti quelli che entrano finiscono nello stesso mondo","name_placeholder":"Il tuo nome visibile","btn_achievements":"🏆 Obiettivi","btn_avatar":"🧑 Avatar","avatar_title":"🧑 Personalizza il tuo avatar","avatar_shirt_label":"Sopra (Maglia)","avatar_pants_label":"Sotto (Pantaloni)","avatar_save_btn":"Salva e chiudi","achv_title":"🏆 Obiettivi","achv_close_btn":"Chiudi","hero_title":"🦸 Scegli il tuo eroe","hero_cancel_btn":"Annulla","hud_back_link":"⬅️ Torna a Dut Arena","hud_hint":"WASD: Muoviti • Shift: Corri • Spazio: Salta (2x: Vola/Capriola/Super salto) • E: Interagisci • 1-4: Scegli oggetto • G: Dai (Strange: Portale futuro) • X: Portale passato (Strange) • F: Spada/Scudo/Martello/Pugno/Portale • L: Laser • I: Indossa l'armatura • T: Schiocco (riavvolge il tempo per tutti) • N: Animazione del guanto • P: Cattura il momento (servono 6 pietre)","chat_placeholder":"Scrivi un messaggio, premi Invio...","game_kacis":"Edificio di Fuga","game_ciftlik":"Fattoria degli Animali","game_kule":"Torre della Sfida","game_mahalle":"Quartiere Vicino","game_arena":"Arena di Battaglia","game_yaris":"Pista da Corsa","game_ada":"Isola della Sopravvivenza","game_restoran":"Gestisci il tuo Ristorante","game_ajan":"Agente Segreto","game_sehir":"Costruisci una Città","game_zombi":"Fuga dagli Zombie","game_balik":"Vai a Pescare","game_basketbol":"Campo da Basket","game_parkur":"Mappa Parkour","game_skatepark":"Skatepark","game_kahraman":"Città dei Supereroi","hero_ironman":"Falco d'Acciaio","hero_captain":"Sentinella Stellare","hero_thor":"Signore del Tuono","hero_hulk":"Furia Verde","hero_strange":"Viaggiatore Dimensionale","stone_power":"Gemma del Potere","stone_space":"Gemma dello Spazio","stone_reality":"Gemma della Realtà","stone_soul":"Gemma dell'Anima","stone_mind":"Gemma della Mente","stone_time":"Gemma del Tempo","achv_first_join_t":"Primo Passo","achv_first_join_d":"Entrato in un mondo per la prima volta","achv_first_stone_t":"Prima Gemma","achv_first_stone_d":"Trovata la tua prima Gemma Eterna","achv_three_stones_t":"Cacciatore di Gemme","achv_three_stones_d":"Raccolte 3 Gemme Eterne","achv_gauntlet_t":"Guanto Eterno","achv_gauntlet_d":"Raccolte tutte e 6 le gemme e completato il guanto","achv_snap_t":"Schiocco!","achv_snap_d":"Usata l'abilità Schiocco","achv_flyer_t":"Conquistatore del Cielo","achv_flyer_d":"Volato per la prima volta","achv_portal_t":"Viaggiatore del Portale","achv_portal_d":"Attraversato un portale verso un altro mondo","achv_giver_t":"Generoso","achv_giver_d":"Dato un oggetto a un altro giocatore","achv_collector_t":"Cacciatore di Doni","achv_collector_d":"Raccolti 10 oggetti in totale","achv_fighter_t":"Combattente","achv_fighter_d":"Usato il tuo attacco 20 volte","achv_thanos_defeated_t":"Hai Sconfitto Thanos","achv_thanos_defeated_d":"Attraversato il portale dello Schiocco e sconfitto Thanos"},"pt":{"page_title":"Mundo Dut","subtitle_hint":"Escolhe um jogo — todos os que entrarem vão para o mesmo mundo","name_placeholder":"O teu nome visível","btn_achievements":"🏆 Conquistas","btn_avatar":"🧑 Avatar","avatar_title":"🧑 Personaliza o teu avatar","avatar_shirt_label":"Cima (Camisa)","avatar_pants_label":"Baixo (Calças)","avatar_save_btn":"Guardar e fechar","achv_title":"🏆 Conquistas","achv_close_btn":"Fechar","hero_title":"🦸 Escolhe o teu herói","hero_cancel_btn":"Cancelar","hud_back_link":"⬅️ Voltar à Dut Arena","hud_hint":"WASD: Mover • Shift: Correr • Espaço: Saltar (2x: Voar/Cambalhota/Super salto) • E: Interagir • 1-4: Escolher item • G: Dar (Strange: Portal futuro) • X: Portal passado (Strange) • F: Espada/Escudo/Martelo/Punho/Portal • L: Laser • I: Vestir armadura • T: Estalo (rebobina o tempo para todos) • N: Animação da manopla • P: Capturar momento (precisa de 6 pedras)","chat_placeholder":"Escreve uma mensagem, pressiona Enter...","game_kacis":"Edifício de Fuga","game_ciftlik":"Quinta de Animais","game_kule":"Torre do Desafio","game_mahalle":"Bairro Vizinho","game_arena":"Arena de Batalha","game_yaris":"Pista de Corrida","game_ada":"Ilha de Sobrevivência","game_restoran":"Gere o teu Restaurante","game_ajan":"Agente Secreto","game_sehir":"Constrói uma Cidade","game_zombi":"Fuga de Zombies","game_balik":"Ir Pescar","game_basketbol":"Campo de Basquete","game_parkur":"Mapa de Parkour","game_skatepark":"Skatepark","game_kahraman":"Cidade dos Super-Heróis","hero_ironman":"Falcão de Aço","hero_captain":"Sentinela Estelar","hero_thor":"Senhor do Trovão","hero_hulk":"Fúria Verde","hero_strange":"Viajante Dimensional","stone_power":"Gema do Poder","stone_space":"Gema do Espaço","stone_reality":"Gema da Realidade","stone_soul":"Gema da Alma","stone_mind":"Gema da Mente","stone_time":"Gema do Tempo","achv_first_join_t":"Primeiro Passo","achv_first_join_d":"Entraste num mundo pela primeira vez","achv_first_stone_t":"Primeira Gema","achv_first_stone_d":"Encontraste a tua primeira Gema Eterna","achv_three_stones_t":"Caçador de Gemas","achv_three_stones_d":"Recolheste 3 Gemas Eternas","achv_gauntlet_t":"Manopla Eterna","achv_gauntlet_d":"Recolheste as 6 gemas e completaste a manopla","achv_snap_t":"Estalo!","achv_snap_d":"Usaste a habilidade Estalo","achv_flyer_t":"Conquistador do Céu","achv_flyer_d":"Voaste pela primeira vez","achv_portal_t":"Viajante de Portais","achv_portal_d":"Atravessaste um portal para outro mundo","achv_giver_t":"Generoso","achv_giver_d":"Deste um item a outro jogador","achv_collector_t":"Caçador de Presentes","achv_collector_d":"Recolheste 10 itens no total","achv_fighter_t":"Lutador","achv_fighter_d":"Usaste o teu ataque 20 vezes","achv_thanos_defeated_t":"Derrotaste o Thanos","achv_thanos_defeated_d":"Atravessaste o portal do Estalo e derrotaste o Thanos"},"ru":{"page_title":"Мир Dut","subtitle_hint":"Выбери игру — все, кто присоединится, попадут в один и тот же мир","name_placeholder":"Твоё отображаемое имя","btn_achievements":"🏆 Достижения","btn_avatar":"🧑 Аватар","avatar_title":"🧑 Настрой своего аватара","avatar_shirt_label":"Верх (Рубашка)","avatar_pants_label":"Низ (Штаны)","avatar_save_btn":"Сохранить и закрыть","achv_title":"🏆 Достижения","achv_close_btn":"Закрыть","hero_title":"🦸 Выбери своего героя","hero_cancel_btn":"Отмена","hud_back_link":"⬅️ Назад в Dut Arena","hud_hint":"WASD: Движение • Shift: Бег • Пробел: Прыжок (2x: Полёт/Сальто/Супер прыжок) • E: Взаимодействие • 1-4: Выбор предмета • G: Отдать (Strange: Портал будущего) • X: Портал прошлого (Strange) • F: Меч/Щит/Молот/Кулак/Портал • L: Лазер • I: Надеть броню • T: Щелчок (отматывает время для всех) • N: Анимация перчатки • P: Снимок момента (нужно 6 камней)","chat_placeholder":"Напиши сообщение, нажми Enter...","game_kacis":"Здание побега","game_ciftlik":"Ферма питомцев","game_kule":"Башня испытаний","game_mahalle":"Соседний квартал","game_arena":"Арена битвы","game_yaris":"Гоночная трасса","game_ada":"Остров выживания","game_restoran":"Управляй рестораном","game_ajan":"Секретный агент","game_sehir":"Строй город","game_zombi":"Побег от зомби","game_balik":"Рыбалка","game_basketbol":"Баскетбольная площадка","game_parkur":"Карта паркура","game_skatepark":"Скейт-парк","game_kahraman":"Город супергероев","hero_ironman":"Стальной Ястреб","hero_captain":"Звёздный Страж","hero_thor":"Повелитель Грома","hero_hulk":"Зелёная Ярость","hero_strange":"Странник Измерений","stone_power":"Камень Силы","stone_space":"Камень Пространства","stone_reality":"Камень Реальности","stone_soul":"Камень Души","stone_mind":"Камень Разума","stone_time":"Камень Времени","achv_first_join_t":"Первый Шаг","achv_first_join_d":"Впервые вошёл в мир","achv_first_stone_t":"Первый Камень","achv_first_stone_d":"Нашёл свой первый Вечный Камень","achv_three_stones_t":"Охотник за Камнями","achv_three_stones_d":"Собрал 3 Вечных Камня","achv_gauntlet_t":"Вечная Перчатка","achv_gauntlet_d":"Собрал все 6 камней и завершил перчатку","achv_snap_t":"Щелчок!","achv_snap_d":"Использовал способность Щелчок","achv_flyer_t":"Покоритель Неба","achv_flyer_d":"Впервые полетел","achv_portal_t":"Странник Порталов","achv_portal_d":"Прошёл через портал в другой мир","achv_giver_t":"Щедрый","achv_giver_d":"Отдал предмет другому игроку","achv_collector_t":"Охотник за Подарками","achv_collector_d":"Собрал 10 предметов всего","achv_fighter_t":"Боец","achv_fighter_d":"Использовал атаку 20 раз","achv_thanos_defeated_t":"Победил Таноса","achv_thanos_defeated_d":"Прошёл через портал Щелчка и победил Таноса"},"ar":{"page_title":"عالم دوت","subtitle_hint":"اختر لعبة — كل من ينضم يصل إلى نفس العالم","name_placeholder":"اسمك الظاهر","btn_achievements":"🏆 الإنجازات","btn_avatar":"🧑 الصورة الرمزية","avatar_title":"🧑 خصص صورتك الرمزية","avatar_shirt_label":"الأعلى (القميص)","avatar_pants_label":"الأسفل (البنطال)","avatar_save_btn":"حفظ وإغلاق","achv_title":"🏆 الإنجازات","achv_close_btn":"إغلاق","hero_title":"🦸 اختر بطلك","hero_cancel_btn":"إلغاء","hud_back_link":"⬅️ العودة إلى Dut Arena","hud_hint":"WASD: الحركة • Shift: الجري • مسافة: القفز (مرتين: الطيران/شقلبة/قفزة خارقة) • E: تفاعل • 1-4: اختر عنصر • G: أعطِ (سترينج: بوابة المستقبل) • X: بوابة الماضي (سترينج) • F: سيف/درع/مطرقة/لكمة/بوابة • L: ليزر • I: ارتداء الدرع • T: قصفة (تُعيد الزمن للجميع) • N: رسوم القفاز • P: التقط اللحظة (يتطلب 6 أحجار)","chat_placeholder":"اكتب رسالة، اضغط Enter...","game_kacis":"مبنى الهروب","game_ciftlik":"مزرعة الحيوانات","game_kule":"برج التحدي","game_mahalle":"الحي المجاور","game_arena":"حلبة المعركة","game_yaris":"مضمار السباق","game_ada":"جزيرة البقاء","game_restoran":"أدر مطعمك","game_ajan":"العميل السري","game_sehir":"ابنِ مدينة","game_zombi":"الهروب من الزومبي","game_balik":"اذهب للصيد","game_basketbol":"ملعب كرة السلة","game_parkur":"خريطة الباركور","game_skatepark":"حديقة التزلج","game_kahraman":"مدينة الأبطال الخارقين","hero_ironman":"الصقر الفولاذي","hero_captain":"حارس النجوم","hero_thor":"سيد الرعد","hero_hulk":"الغضب الأخضر","hero_strange":"متجول الأبعاد","stone_power":"حجر القوة","stone_space":"حجر الفضاء","stone_reality":"حجر الواقع","stone_soul":"حجر الروح","stone_mind":"حجر العقل","stone_time":"حجر الزمن","achv_first_join_t":"الخطوة الأولى","achv_first_join_d":"دخلت عالماً لأول مرة","achv_first_stone_t":"الحجر الأول","achv_first_stone_d":"وجدت حجرك الأبدي الأول","achv_three_stones_t":"صائد الأحجار","achv_three_stones_d":"جمعت 3 أحجار أبدية","achv_gauntlet_t":"القفاز الأبدي","achv_gauntlet_d":"جمعت الأحجار الستة وأكملت القفاز","achv_snap_t":"قصفة!","achv_snap_d":"استخدمت قدرة القصفة","achv_flyer_t":"فاتح السماء","achv_flyer_d":"طرت لأول مرة","achv_portal_t":"مسافر البوابات","achv_portal_d":"عبرت بوابة إلى عالم آخر","achv_giver_t":"كريم","achv_giver_d":"أعطيت عنصراً للاعب آخر","achv_collector_t":"صائد الهدايا","achv_collector_d":"جمعت 10 عناصر إجمالاً","achv_fighter_t":"مقاتل","achv_fighter_d":"استخدمت هجومك 20 مرة","achv_thanos_defeated_t":"هزمت ثانوس","achv_thanos_defeated_d":"عبرت بوابة القصفة وهزمت ثانوس"},"zh":{"page_title":"Dut世界","subtitle_hint":"选择一个游戏——所有加入的人都会进入同一个世界","name_placeholder":"你的显示名称","btn_achievements":"🏆 成就","btn_avatar":"🧑 头像","avatar_title":"🧑 自定义你的头像","avatar_shirt_label":"上衣","avatar_pants_label":"裤子","avatar_save_btn":"保存并关闭","achv_title":"🏆 成就","achv_close_btn":"关闭","hero_title":"🦸 选择你的英雄","hero_cancel_btn":"取消","hud_back_link":"⬅️ 返回 Dut Arena","hud_hint":"WASD：移动 • Shift：跑步 • 空格：跳跃（按两次：飞行/翻滚/超级跳） • E：互动 • 1-4：选择物品 • G：给予（奇异博士：未来传送门） • X：过去传送门（奇异博士） • F：剑/盾/锤/拳/传送门 • L：激光 • I：穿上盔甲 • T：响指（为所有人倒转时间） • N：手套动画 • P：拍下瞬间（需要6颗宝石）","chat_placeholder":"输入消息，按回车...","game_kacis":"逃脱大楼","game_ciftlik":"宠物农场","game_kule":"挑战之塔","game_mahalle":"邻里小镇","game_arena":"战斗竞技场","game_yaris":"赛车跑道","game_ada":"生存岛","game_restoran":"经营你的餐厅","game_ajan":"秘密特工","game_sehir":"建造城市","game_zombi":"僵尸逃脱","game_balik":"去钓鱼","game_basketbol":"篮球场","game_parkur":"跑酷地图","game_skatepark":"滑板公园","game_kahraman":"超级英雄之城","hero_ironman":"钢铁之鹰","hero_captain":"星辰哨兵","hero_thor":"雷霆之王","hero_hulk":"绿色狂怒","hero_strange":"次元行者","stone_power":"力量宝石","stone_space":"空间宝石","stone_reality":"现实宝石","stone_soul":"灵魂宝石","stone_mind":"心灵宝石","stone_time":"时间宝石","achv_first_join_t":"第一步","achv_first_join_d":"第一次进入一个世界","achv_first_stone_t":"第一颗宝石","achv_first_stone_d":"找到了你的第一颗永恒宝石","achv_three_stones_t":"宝石猎人","achv_three_stones_d":"收集了3颗永恒宝石","achv_gauntlet_t":"永恒手套","achv_gauntlet_d":"收集了全部6颗宝石并完成了手套","achv_snap_t":"响指！","achv_snap_d":"使用了响指能力","achv_flyer_t":"天空征服者","achv_flyer_d":"第一次飞行","achv_portal_t":"传送门旅行者","achv_portal_d":"穿过传送门前往另一个世界","achv_giver_t":"慷慨者","achv_giver_d":"给了另一位玩家一件物品","achv_collector_t":"礼物猎人","achv_collector_d":"总共收集了10件物品","achv_fighter_t":"战士","achv_fighter_d":"使用了20次攻击动作","achv_thanos_defeated_t":"击败了灭霸","achv_thanos_defeated_d":"穿过响指传送门并击败了灭霸"},"ja":{"page_title":"デュット・ワールド","subtitle_hint":"ゲームを選んでね — 参加した人はみんな同じ世界に入るよ","name_placeholder":"表示名","btn_achievements":"🏆 実績","btn_avatar":"🧑 アバター","avatar_title":"🧑 アバターをカスタマイズ","avatar_shirt_label":"上（シャツ）","avatar_pants_label":"下（ズボン）","avatar_save_btn":"保存して閉じる","achv_title":"🏆 実績","achv_close_btn":"閉じる","hero_title":"🦸 ヒーローを選ぶ","hero_cancel_btn":"キャンセル","hud_back_link":"⬅️ デュット・アリーナに戻る","hud_hint":"WASD：移動 • Shift：ダッシュ • スペース：ジャンプ（2回：飛行/宙返り/スーパージャンプ） • E：インタラクト • 1-4：アイテム選択 • G：渡す（ストレンジ：未来ポータル） • X：過去ポータル（ストレンジ） • F：剣/盾/ハンマー/パンチ/ポータル • L：レーザー • I：鎧を装備 • T：スナップ（全員の時間を巻き戻す） • N：ガントレットアニメーション • P：瞬間を撮影（石が6個必要）","chat_placeholder":"メッセージを入力してEnterを押してね...","game_kacis":"脱出ビル","game_ciftlik":"ペット牧場","game_kule":"チャレンジタワー","game_mahalle":"ご近所タウン","game_arena":"バトルアリーナ","game_yaris":"レースコース","game_ada":"サバイバル島","game_restoran":"レストラン経営","game_ajan":"シークレットエージェント","game_sehir":"都市建設","game_zombi":"ゾンビ脱出","game_balik":"釣りに行く","game_basketbol":"バスケットコート","game_parkur":"パルクールマップ","game_skatepark":"スケートパーク","game_kahraman":"スーパーヒーローシティ","hero_ironman":"スチールホーク","hero_captain":"スターセンチネル","hero_thor":"雷鳴の王","hero_hulk":"グリーンレイジ","hero_strange":"次元の旅人","stone_power":"パワーストーン","stone_space":"スペースストーン","stone_reality":"リアリティストーン","stone_soul":"ソウルストーン","stone_mind":"マインドストーン","stone_time":"タイムストーン","achv_first_join_t":"最初の一歩","achv_first_join_d":"初めて世界に入った","achv_first_stone_t":"最初の石","achv_first_stone_d":"初めての永遠の石を見つけた","achv_three_stones_t":"ストーンハンター","achv_three_stones_d":"永遠の石を3個集めた","achv_gauntlet_t":"永遠のガントレット","achv_gauntlet_d":"6個の石を全て集めてガントレットを完成させた","achv_snap_t":"スナップ！","achv_snap_d":"スナップ能力を使った","achv_flyer_t":"空の征服者","achv_flyer_d":"初めて飛んだ","achv_portal_t":"ポータルトラベラー","achv_portal_d":"ポータルを通って別の世界に行った","achv_giver_t":"気前がいい","achv_giver_d":"他のプレイヤーにアイテムをあげた","achv_collector_t":"ギフトハンター","achv_collector_d":"合計10個のアイテムを集めた","achv_fighter_t":"ファイター","achv_fighter_d":"攻撃を20回使った","achv_thanos_defeated_t":"サノスを倒した","achv_thanos_defeated_d":"スナップポータルを通ってサノスを倒した"},"ko":{"page_title":"뒤트 월드","subtitle_hint":"게임을 선택하세요 — 참여하는 모두가 같은 세계로 들어갑니다","name_placeholder":"표시할 이름","btn_achievements":"🏆 업적","btn_avatar":"🧑 아바타","avatar_title":"🧑 아바타 꾸미기","avatar_shirt_label":"상의 (셔츠)","avatar_pants_label":"하의 (바지)","avatar_save_btn":"저장하고 닫기","achv_title":"🏆 업적","achv_close_btn":"닫기","hero_title":"🦸 영웅을 선택하세요","hero_cancel_btn":"취소","hud_back_link":"⬅️ 뒤트 아레나로 돌아가기","hud_hint":"WASD: 이동 • Shift: 달리기 • 스페이스: 점프 (2회: 비행/공중제비/슈퍼점프) • E: 상호작용 • 1-4: 아이템 선택 • G: 주기 (스트레인지: 미래 포털) • X: 과거 포털 (스트레인지) • F: 검/방패/망치/주먹/포털 • L: 레이저 • I: 갑옷 착용 • T: 스냅 (모두의 시간을 되돌림) • N: 건틀릿 애니메이션 • P: 순간 포착 (돌 6개 필요)","chat_placeholder":"메시지를 입력하고 Enter를 누르세요...","game_kacis":"탈출 빌딩","game_ciftlik":"반려동물 농장","game_kule":"도전의 탑","game_mahalle":"이웃 마을","game_arena":"전투 아레나","game_yaris":"레이싱 트랙","game_ada":"생존 섬","game_restoran":"레스토랑 운영","game_ajan":"비밀 요원","game_sehir":"도시 건설","game_zombi":"좀비 탈출","game_balik":"낚시하러 가기","game_basketbol":"농구 코트","game_parkur":"파쿠르 맵","game_skatepark":"스케이트 파크","game_kahraman":"슈퍼히어로 도시","hero_ironman":"스틸 호크","hero_captain":"스타 센티넬","hero_thor":"천둥의 왕","hero_hulk":"그린 레이지","hero_strange":"차원 여행자","stone_power":"파워 스톤","stone_space":"스페이스 스톤","stone_reality":"리얼리티 스톤","stone_soul":"소울 스톤","stone_mind":"마인드 스톤","stone_time":"타임 스톤","achv_first_join_t":"첫 걸음","achv_first_join_d":"처음으로 세계에 들어갔습니다","achv_first_stone_t":"첫 번째 돌","achv_first_stone_d":"첫 번째 영원의 돌을 찾았습니다","achv_three_stones_t":"돌 사냥꾼","achv_three_stones_d":"영원의 돌 3개를 모았습니다","achv_gauntlet_t":"영원의 건틀릿","achv_gauntlet_d":"돌 6개를 모두 모아 건틀릿을 완성했습니다","achv_snap_t":"스냅!","achv_snap_d":"스냅 능력을 사용했습니다","achv_flyer_t":"하늘의 정복자","achv_flyer_d":"처음으로 비행했습니다","achv_portal_t":"포털 여행자","achv_portal_d":"포털을 통해 다른 세계로 이동했습니다","achv_giver_t":"관대함","achv_giver_d":"다른 플레이어에게 아이템을 주었습니다","achv_collector_t":"선물 사냥꾼","achv_collector_d":"총 10개의 아이템을 모았습니다","achv_fighter_t":"전사","achv_fighter_d":"공격 동작을 20번 사용했습니다","achv_thanos_defeated_t":"타노스를 물리쳤습니다","achv_thanos_defeated_d":"스냅 포털을 통과해 타노스를 물리쳤습니다"},"hi":{"page_title":"डुट वर्ल्ड","subtitle_hint":"एक गेम चुनें — जो भी जुड़ेगा वह उसी दुनिया में पहुंचेगा","name_placeholder":"आपका प्रदर्शित नाम","btn_achievements":"🏆 उपलब्धियां","btn_avatar":"🧑 अवतार","avatar_title":"🧑 अपना अवतार अनुकूलित करें","avatar_shirt_label":"ऊपर (शर्ट)","avatar_pants_label":"नीचे (पैंट)","avatar_save_btn":"सहेजें और बंद करें","achv_title":"🏆 उपलब्धियां","achv_close_btn":"बंद करें","hero_title":"🦸 अपना हीरो चुनें","hero_cancel_btn":"रद्द करें","hud_back_link":"⬅️ डुट एरिना पर वापस जाएं","hud_hint":"WASD: चलें • Shift: दौड़ें • स्पेस: कूदें (2x: उड़ें/पलटी/सुपर जंप) • E: इंटरैक्ट • 1-4: आइटम चुनें • G: दें (स्ट्रेंज: भविष्य पोर्टल) • X: भूतकाल पोर्टल (स्ट्रेंज) • F: तलवार/ढाल/हथौड़ा/मुक्का/पोर्टल • L: लेज़र • I: कवच पहनें • T: स्नैप (सभी के लिए समय वापस घुमाता है) • N: ग्लव एनिमेशन • P: पल कैद करें (6 पत्थर चाहिए)","chat_placeholder":"संदेश लिखें, Enter दबाएं...","game_kacis":"एस्केप बिल्डिंग","game_ciftlik":"पालतू फार्म","game_kule":"चैलेंज टावर","game_mahalle":"पड़ोस शहर","game_arena":"बैटल एरिना","game_yaris":"रेस ट्रैक","game_ada":"सर्वाइवल आइलैंड","game_restoran":"अपना रेस्टोरेंट चलाएं","game_ajan":"सीक्रेट एजेंट","game_sehir":"शहर बनाएं","game_zombi":"ज़ॉम्बी एस्केप","game_balik":"मछली पकड़ने जाएं","game_basketbol":"बास्केटबॉल कोर्ट","game_parkur":"पार्कौर मैप","game_skatepark":"स्केट पार्क","game_kahraman":"सुपरहीरो शहर","hero_ironman":"स्टील हॉक","hero_captain":"स्टार सेंटिनल","hero_thor":"थंडर लॉर्ड","hero_hulk":"ग्रीन रेज","hero_strange":"डाइमेंशन वॉकर","stone_power":"पावर स्टोन","stone_space":"स्पेस स्टोन","stone_reality":"रियलिटी स्टोन","stone_soul":"सोल स्टोन","stone_mind":"माइंड स्टोन","stone_time":"टाइम स्टोन","achv_first_join_t":"पहला कदम","achv_first_join_d":"पहली बार एक दुनिया में प्रवेश किया","achv_first_stone_t":"पहला पत्थर","achv_first_stone_d":"अपना पहला शाश्वत पत्थर पाया","achv_three_stones_t":"पत्थर शिकारी","achv_three_stones_d":"3 शाश्वत पत्थर इकट्ठे किए","achv_gauntlet_t":"शाश्वत दस्ताना","achv_gauntlet_d":"सभी 6 पत्थर इकट्ठे करके दस्ताना पूरा किया","achv_snap_t":"स्नैप!","achv_snap_d":"स्नैप क्षमता का उपयोग किया","achv_flyer_t":"आकाश विजेता","achv_flyer_d":"पहली बार उड़े","achv_portal_t":"पोर्टल यात्री","achv_portal_d":"पोर्टल से दूसरी दुनिया में गए","achv_giver_t":"उदार","achv_giver_d":"किसी अन्य खिलाड़ी को आइटम दिया","achv_collector_t":"उपहार शिकारी","achv_collector_d":"कुल 10 आइटम इकट्ठे किए","achv_fighter_t":"लड़ाका","achv_fighter_d":"अपना हमला 20 बार इस्तेमाल किया","achv_thanos_defeated_t":"थानोस को हराया","achv_thanos_defeated_d":"स्नैप पोर्टल से गुजरकर थानोस को हराया"}};;
+  var currentLang = localStorage.getItem('dutArenaLang') || 'tr';
+  function T(){ return TRANSLATIONS[currentLang] || TRANSLATIONS.tr; }
 
   var scene = new THREE.Scene();
   function makeSkyTexture(top, bottom){
@@ -648,6 +667,8 @@
   rbxStats.primaryActions = rbxStats.primaryActions || 0;
   function saveRbxStats(){ localStorage.setItem('dutArenaRbxStats', JSON.stringify(rbxStats)); }
   var achvToastTimer = null;
+  function achvTitle(def){ return T()['achv_' + def.id + '_t'] || def.title; }
+  function achvDesc(def){ return T()['achv_' + def.id + '_d'] || def.desc; }
   function unlockAchv(id){
     if (unlockedAchvs.indexOf(id) !== -1) return;
     unlockedAchvs.push(id);
@@ -657,7 +678,7 @@
     if (!def) return;
     var el = document.getElementById('achv-toast');
     el.innerHTML = '<div class="achv-toast-icon">' + def.emoji + '</div>' +
-      '<div><div class="achv-toast-title">🏆 ' + def.title + '</div><div class="achv-toast-desc">' + def.desc + '</div> +10 💰</div></div>';
+      '<div><div class="achv-toast-title">🏆 ' + achvTitle(def) + '</div><div class="achv-toast-desc">' + achvDesc(def) + '</div> +10 💰</div></div>';
     el.hidden = false;
     el.classList.add('show');
     clearTimeout(achvToastTimer);
@@ -677,12 +698,13 @@
   try { collectedStones = JSON.parse(localStorage.getItem('dutArenaRbxStones') || '[]'); } catch(e){ collectedStones = []; }
   var hasGauntlet = localStorage.getItem('dutArenaRbxGauntlet') === '1';
   var stonesHud = document.getElementById('stones-hud');
+  function stoneName(stone){ return T()['stone_' + stone.id] || stone.name; }
   function renderStonesHud(){
     stonesHud.innerHTML = '';
     STONES.forEach(function(s){
       var dot = document.createElement('div');
       dot.className = 'stone-dot';
-      dot.title = s.name;
+      dot.title = stoneName(s);
       dot.style.background = collectedStones.indexOf(s.id) !== -1 ? '#' + s.color.toString(16).padStart(6,'0') : 'rgba(255,255,255,.12)';
       stonesHud.appendChild(dot);
     });
@@ -692,7 +714,7 @@
     collectedStones.push(stone.id);
     localStorage.setItem('dutArenaRbxStones', JSON.stringify(collectedStones));
     renderStonesHud();
-    appendChat('Sistem', stone.emoji + ' ' + stone.name + '\'nı ele geçirdin! (' + collectedStones.length + '/6)');
+    appendChat('Sistem', stone.emoji + ' ' + stoneName(stone) + '\'nı ele geçirdin! (' + collectedStones.length + '/6)');
     if (collectedStones.length === 1) unlockAchv('first_stone');
     if (collectedStones.length === 3) unlockAchv('three_stones');
     if (collectedStones.length === 6 && !hasGauntlet) startGauntletCutscene();
@@ -726,7 +748,7 @@
     }, MARKET_COLOR);
     var stone = STONES.filter(function(s){ return s.worldId === mapId; })[0];
     if (stone && collectedStones.indexOf(stone.id) === -1){
-      var shrineEntry = addInteractable(0, 6, stone.emoji + ' ' + stone.name, function(){
+      var shrineEntry = addInteractable(0, 6, stone.emoji + ' ' + stoneName(stone), function(){
         collectStone(stone);
         removeInteractable(shrineEntry);
       }, stone.color, 0.6);
@@ -1267,25 +1289,29 @@
     { id:'kahraman', icon:'🦸', title:'Süper Kahraman Şehri', grad:'#c0392b,#f0b429', rating:'👍 98%' }
   ];
   var gameGrid = document.getElementById('game-grid');
-  GAMES.forEach(function(game){
-    var tile = document.createElement('div');
-    tile.className = 'game-tile';
-    var colors = game.grad.split(',');
-    tile.innerHTML =
-      '<div class="thumb" style="background:linear-gradient(135deg,' + colors[0] + ',' + colors[1] + ')">' + game.icon + '</div>' +
-      '<div class="meta"><p class="title">' + game.title + '</p><p class="rating">' + game.rating + '</p></div>';
-    tile.addEventListener('click', function(){
-      if (game.id === 'kahraman'){
-        document.getElementById('hero-screen').classList.add('open');
-        return;
-      }
-      selectedHero = 'ironman';
-      attachWeapon(selectedHero);
-      sendOrQueue({ type:'rbx-enter', gameId: game.id, mapId: game.id, name: sessionName, color: avatarShirt, hero: selectedHero });
-      document.getElementById('room-code-text').textContent = game.title;
+  function renderGameGrid(){
+    gameGrid.innerHTML = '';
+    GAMES.forEach(function(game){
+      var tile = document.createElement('div');
+      tile.className = 'game-tile';
+      var colors = game.grad.split(',');
+      var title = T()['game_' + game.id] || game.id;
+      tile.innerHTML =
+        '<div class="thumb" style="background:linear-gradient(135deg,' + colors[0] + ',' + colors[1] + ')">' + game.icon + '</div>' +
+        '<div class="meta"><p class="title">' + title + '</p><p class="rating">' + game.rating + '</p></div>';
+      tile.addEventListener('click', function(){
+        if (game.id === 'kahraman'){
+          document.getElementById('hero-screen').classList.add('open');
+          return;
+        }
+        selectedHero = 'ironman';
+        attachWeapon(selectedHero);
+        sendOrQueue({ type:'rbx-enter', gameId: game.id, mapId: game.id, name: sessionName, color: avatarShirt, hero: selectedHero });
+        document.getElementById('room-code-text').textContent = T()['game_' + game.id] || game.id;
+      });
+      gameGrid.appendChild(tile);
     });
-    gameGrid.appendChild(tile);
-  });
+  }
 
   // ---- Super hero picker ----
   var HEROES = [
@@ -1310,23 +1336,27 @@
     rightLeg.children[0].material.color.set(base.leg);
   }
   var heroGrid = document.getElementById('hero-grid');
-  HEROES.forEach(function(hero){
-    var tile = document.createElement('div');
-    tile.className = 'game-tile';
-    var colors = hero.grad.split(',');
-    tile.innerHTML =
-      '<div class="thumb" style="background:linear-gradient(135deg,' + colors[0] + ',' + colors[1] + ')">' + hero.icon + '</div>' +
-      '<div class="meta"><p class="title">' + hero.title + '</p></div>';
-    tile.addEventListener('click', function(){
-      selectedHero = hero.id;
-      attachWeapon(selectedHero);
-      applyHeroLook(selectedHero);
-      document.getElementById('hero-screen').classList.remove('open');
-      sendOrQueue({ type:'rbx-enter', gameId:'kahraman', mapId:'kahraman', name:sessionName, color:avatarShirt, hero:selectedHero });
-      document.getElementById('room-code-text').textContent = 'Süper Kahraman Şehri — ' + hero.title;
+  function renderHeroGrid(){
+    heroGrid.innerHTML = '';
+    HEROES.forEach(function(hero){
+      var tile = document.createElement('div');
+      tile.className = 'game-tile';
+      var colors = hero.grad.split(',');
+      var title = T()['hero_' + hero.id] || hero.id;
+      tile.innerHTML =
+        '<div class="thumb" style="background:linear-gradient(135deg,' + colors[0] + ',' + colors[1] + ')">' + hero.icon + '</div>' +
+        '<div class="meta"><p class="title">' + title + '</p></div>';
+      tile.addEventListener('click', function(){
+        selectedHero = hero.id;
+        attachWeapon(selectedHero);
+        applyHeroLook(selectedHero);
+        document.getElementById('hero-screen').classList.remove('open');
+        sendOrQueue({ type:'rbx-enter', gameId:'kahraman', mapId:'kahraman', name:sessionName, color:avatarShirt, hero:selectedHero });
+        document.getElementById('room-code-text').textContent = (T()['game_kahraman'] || 'Super Hero City') + ' — ' + title;
+      });
+      heroGrid.appendChild(tile);
     });
-    heroGrid.appendChild(tile);
-  });
+  }
   document.getElementById('hero-cancel-btn').addEventListener('click', function(){
     document.getElementById('hero-screen').classList.remove('open');
   });
@@ -1372,8 +1402,6 @@
       avatarPants = hex; localStorage.setItem('dutArenaRbxPants', hex); applyAvatarColors();
     });
   }
-  renderShirtSwatches();
-  renderPantsSwatches();
   document.getElementById('avatar-btn').addEventListener('click', function(){
     renderShirtSwatches();
     renderPantsSwatches();
@@ -1391,7 +1419,7 @@
       var tile = document.createElement('div');
       tile.className = 'game-tile achv-tile' + (unlocked ? '' : ' locked');
       tile.innerHTML = '<div class="ic">' + (unlocked ? a.emoji : '🔒') + '</div>' +
-        '<div class="ti">' + a.title + '</div><div class="de">' + a.desc + '</div>';
+        '<div class="ti">' + achvTitle(a) + '</div><div class="de">' + achvDesc(a) + '</div>';
       grid.appendChild(tile);
     });
   }
@@ -1403,6 +1431,41 @@
     document.getElementById('achv-screen').classList.remove('open');
   });
   document.getElementById('photo-btn').addEventListener('click', function(){ capturePhoto(); });
+
+  // ---- Language ----
+  function applyLanguage(){
+    var t = T();
+    document.title = t.page_title + ' - Düt Arena';
+    document.getElementById('page-h1').textContent = '🎮 ' + t.page_title;
+    document.getElementById('subtitle-hint').textContent = t.subtitle_hint;
+    document.getElementById('name-input').placeholder = t.name_placeholder;
+    document.getElementById('achv-btn').textContent = t.btn_achievements;
+    document.getElementById('avatar-btn').textContent = t.btn_avatar;
+    document.getElementById('avatar-title-text').textContent = t.avatar_title;
+    document.getElementById('avatar-shirt-label').textContent = t.avatar_shirt_label;
+    document.getElementById('avatar-pants-label').textContent = t.avatar_pants_label;
+    document.getElementById('avatar-close-btn').textContent = t.avatar_save_btn;
+    document.getElementById('achv-title-text').textContent = t.achv_title;
+    document.getElementById('achv-close-btn').textContent = t.achv_close_btn;
+    document.getElementById('hero-title-text').textContent = t.hero_title;
+    document.getElementById('hero-cancel-btn').textContent = t.hero_cancel_btn;
+    document.getElementById('hud-back-link').textContent = t.hud_back_link;
+    document.getElementById('hint').textContent = t.hud_hint;
+    document.getElementById('chat-input').placeholder = t.chat_placeholder;
+    document.getElementById('rbx-lang-select').value = currentLang;
+    renderGameGrid();
+    renderHeroGrid();
+    renderShirtSwatches();
+    renderPantsSwatches();
+    renderAchvGrid();
+    renderStonesHud();
+  }
+  document.getElementById('rbx-lang-select').addEventListener('change', function(){
+    currentLang = this.value;
+    localStorage.setItem('dutArenaLang', currentLang);
+    applyLanguage();
+  });
+  applyLanguage();
 
   // ---- Movement state ----
   var keys = {};
