@@ -32,20 +32,55 @@
   }
   #start-screen{
     position:fixed; inset:0; z-index:15; display:flex; align-items:center; justify-content:center;
-    background:rgba(8,8,16,.72);
+    background:#0d0d14;
   }
   .start-card{
     background:rgba(22,22,34,.95); border:1px solid rgba(255,255,255,.15);
     border-radius:16px; padding:28px 32px; text-align:center; color:#fff;
-    max-width:360px; box-shadow:0 10px 40px rgba(0,0,0,.5);
+    max-width:380px; width:90%; box-shadow:0 10px 40px rgba(0,0,0,.5);
   }
-  .start-card h1{ margin:0 0 10px; font-size:24px; }
-  .start-card p{ margin:0 0 20px; font-size:14px; color:#cfcfe0; line-height:1.5; }
-  #play-btn{
-    font-size:17px; font-weight:700; color:#fff; background:#2e9e4a;
-    border:none; border-radius:10px; padding:12px 28px; cursor:pointer;
+  .start-card h1{ margin:0 0 18px; font-size:24px; }
+  .lobby-tabs{ display:flex; gap:8px; margin-bottom:18px; }
+  .lobby-tab{
+    flex:1; font-size:14px; font-weight:700; color:#cfcfe0; background:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.15); border-radius:9px; padding:10px 6px; cursor:pointer;
   }
-  #play-btn:hover{ background:#36b357; }
+  .lobby-tab.active{ color:#fff; background:#1e5fa8; border-color:#1e5fa8; }
+  .lobby-section p.lobby-hint{ margin:0 0 8px; font-size:13px; color:#a9a9c0; text-align:left; }
+  .lobby-section select, .lobby-section input{
+    width:100%; box-sizing:border-box; font-size:15px; padding:10px 12px; margin-bottom:14px;
+    border-radius:9px; border:1px solid rgba(255,255,255,.2); background:rgba(255,255,255,.06); color:#fff;
+  }
+  .lobby-section input::placeholder{ color:#8d8da8; }
+  .lobby-btn{
+    width:100%; font-size:16px; font-weight:700; color:#fff; background:#2e9e4a;
+    border:none; border-radius:10px; padding:12px; cursor:pointer;
+  }
+  .lobby-btn:hover{ background:#36b357; }
+  .lobby-error{ min-height:18px; margin:10px 0 0; font-size:13px; color:#ff6b6b; }
+  #room-badge{
+    pointer-events:none; color:#fff; font-size:13px; font-weight:700;
+    background:rgba(20,20,30,.65); border:1px solid rgba(255,255,255,.2);
+    border-radius:10px; padding:8px 14px;
+  }
+  #chat-panel{
+    position:fixed; left:16px; bottom:16px; z-index:10; width:280px;
+    display:flex; flex-direction:column; gap:6px;
+  }
+  #chat-log{
+    max-height:160px; overflow-y:auto; display:flex; flex-direction:column; gap:3px;
+    font-size:13px;
+  }
+  #chat-log div{
+    color:#fff; background:rgba(10,10,18,.6); border-radius:7px; padding:4px 9px; width:fit-content; max-width:100%;
+    word-break:break-word;
+  }
+  #chat-log b{ color:#8ecbff; }
+  #chat-input{
+    font-size:13px; padding:9px 12px; border-radius:9px; border:1px solid rgba(255,255,255,.2);
+    background:rgba(10,10,18,.6); color:#fff;
+  }
+  #chat-input::placeholder{ color:#8d8da8; }
 </style>
 </head>
 <body>
@@ -55,14 +90,37 @@
 <div id="start-screen">
   <div class="start-card">
     <h1>🎮 Roblox Dünyası</h1>
-    <p>WASD ile hareket et, boşlukla zıpla, fareyle sürükleyerek kamerayı döndür.</p>
-    <button id="play-btn" type="button">▶️ Oyna</button>
+    <div class="lobby-tabs">
+      <button type="button" class="lobby-tab active" id="tab-create">Grup Oluştur</button>
+      <button type="button" class="lobby-tab" id="tab-join">Gruba Katıl</button>
+    </div>
+    <div class="lobby-section" id="section-create">
+      <p class="lobby-hint">Harita seç</p>
+      <select id="map-select">
+        <option value="classic">🟩 Klasik Harita</option>
+        <option value="parkour">🧗 Parkur Haritası</option>
+        <option value="arena">⚔️ Arena Haritası</option>
+      </select>
+      <button type="button" class="lobby-btn" id="create-btn">Grup Oluştur</button>
+    </div>
+    <div class="lobby-section" id="section-join" hidden>
+      <p class="lobby-hint">Grup kodu</p>
+      <input type="text" id="code-input" maxlength="5" placeholder="Örn: AB12C" autocomplete="off">
+      <button type="button" class="lobby-btn" id="join-btn">Katıl</button>
+    </div>
+    <p class="lobby-error" id="lobby-error"></p>
   </div>
 </div>
 
 <div id="hud">
   <a href="/">⬅️ Düt Arena'ya Dön</a>
+  <div id="room-badge" hidden>Kod: <span id="room-code-text"></span></div>
   <div id="hint">WASD: Hareket • Boşluk: Zıpla • Fare: Kamera</div>
+</div>
+
+<div id="chat-panel" hidden>
+  <div id="chat-log"></div>
+  <input type="text" id="chat-input" maxlength="140" placeholder="Mesaj yaz, Enter'a bas...">
 </div>
 
 <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
@@ -105,9 +163,10 @@
   grid.position.y = 0.01;
   scene.add(grid);
 
-  // Some simple blocks around for scale/reference — solid, so the character collides with them
+  // Blocks — solid, so the character collides with them. Rebuilt per map.
   var CHAR_RADIUS = 0.75;
   var solidBlocks = [];
+  var mapMeshes = [];
   function addBlock(x, z, w, h, d, color){
     var m = new THREE.Mesh(
       new THREE.BoxGeometry(w, h, d),
@@ -116,12 +175,9 @@
     m.position.set(x, h/2, z);
     m.castShadow = true; m.receiveShadow = true;
     scene.add(m);
+    mapMeshes.push(m);
     solidBlocks.push({ x:x, z:z, halfW: w/2 + CHAR_RADIUS, halfD: d/2 + CHAR_RADIUS });
   }
-  addBlock(10, -6, 4, 4, 4, 0xc0392b);
-  addBlock(-12, 8, 6, 2, 6, 0x2980b9);
-  addBlock(6, 14, 3, 6, 3, 0x27ae60);
-  addBlock(-8, -14, 5, 3, 5, 0xf39c12);
 
   function hitsSolid(x, z){
     for (var i=0; i<solidBlocks.length; i++){
@@ -130,6 +186,38 @@
     }
     return false;
   }
+
+  function loadMap(mapId){
+    mapMeshes.forEach(function(m){ scene.remove(m); });
+    mapMeshes = [];
+    solidBlocks = [];
+    if (mapId === 'parkour'){
+      groundMat.color.set(0x8a8f6e);
+      addBlock(0, -8, 3, 1, 10, 0x8e5a2b);
+      addBlock(8, -2, 10, 1, 3, 0x8e5a2b);
+      addBlock(8, 10, 3, 1, 10, 0x8e5a2b);
+      addBlock(0, 16, 10, 1, 3, 0x8e5a2b);
+      addBlock(-8, 10, 3, 1, 10, 0x8e5a2b);
+      addBlock(-8, -4, 3, 1, 6, 0x8e5a2b);
+    } else if (mapId === 'arena'){
+      groundMat.color.set(0x8c6a6a);
+      var n = 14, r = 26;
+      for (var i=0;i<n;i++){
+        var a = (i/n) * Math.PI*2;
+        addBlock(Math.cos(a)*r, Math.sin(a)*r, 4, 3, 4, 0x6b3a3a);
+      }
+      addBlock(6, 0, 3, 1.4, 3, 0xb08a3a);
+      addBlock(-6, 6, 3, 1.4, 3, 0xb08a3a);
+      addBlock(-6, -6, 3, 1.4, 3, 0xb08a3a);
+    } else {
+      groundMat.color.set(0xa3a2a5);
+      addBlock(10, -6, 4, 4, 4, 0xc0392b);
+      addBlock(-12, 8, 6, 2, 6, 0x2980b9);
+      addBlock(6, 14, 3, 6, 3, 0x27ae60);
+      addBlock(-8, -14, 5, 3, 5, 0xf39c12);
+    }
+  }
+  loadMap('classic');
 
   // ---- Roblox-style blocky character (R6-ish) ----
   var SKIN = 0xf5cd6a;
@@ -221,12 +309,166 @@
   nameSprite.position.set(0, 5.7, 0);
   character.add(nameSprite);
 
+  var sessionName = 'Misafir';
+  var sessionColor = '#1e5fa8';
   fetch('/api/me').then(function(r){ return r.json(); }).then(function(info){
-    var name = (info && info.loggedIn && info.name) ? info.name : 'Misafir';
+    sessionName = (info && info.loggedIn && info.name) ? info.name : 'Misafir';
+    if (info && info.color) sessionColor = info.color;
     nameSprite.material.map.dispose();
-    nameSprite.material.map = makeNameTexture(name);
+    nameSprite.material.map = makeNameTexture(sessionName);
     nameSprite.material.needsUpdate = true;
   }).catch(function(){ /* stay as Misafir */ });
+
+  // ---- Remote player avatars (other people in the same room) ----
+  var remotePlayers = {}; // id -> { group, target:{x,y,z,ry} }
+  function buildRemoteAvatar(color, name){
+    var g = new THREE.Group();
+    var torsoM = new THREE.Mesh(new THREE.BoxGeometry(2,2,1), new THREE.MeshStandardMaterial({ color:color, roughness:0.7 }));
+    torsoM.position.y = 3; torsoM.castShadow = true;
+    g.add(torsoM);
+    var headM = new THREE.Mesh(new THREE.BoxGeometry(1.4,1.4,1.4), new THREE.MeshStandardMaterial({ color:SKIN, roughness:0.6 }));
+    headM.position.y = 4.7; headM.castShadow = true;
+    g.add(headM);
+    var armGeo = new THREE.BoxGeometry(0.6,2,0.6);
+    [-1.3,1.3].forEach(function(xoff){
+      var a = new THREE.Mesh(armGeo, new THREE.MeshStandardMaterial({ color:SKIN, roughness:0.7 }));
+      a.position.set(xoff, 2.9, 0); a.castShadow = true;
+      g.add(a);
+    });
+    var legGeo = new THREE.BoxGeometry(0.75,2,0.75);
+    [-0.5,0.5].forEach(function(xoff){
+      var l = new THREE.Mesh(legGeo, new THREE.MeshStandardMaterial({ color:PANTS, roughness:0.7 }));
+      l.position.set(xoff, 1, 0); l.castShadow = true;
+      g.add(l);
+    });
+    var tagSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeNameTexture(name || 'Oyuncu'), transparent:true, depthTest:false }));
+    tagSprite.scale.set(2.2, 0.55, 1);
+    tagSprite.position.set(0, 5.7, 0);
+    g.add(tagSprite);
+    scene.add(g);
+    return g;
+  }
+  function addRemotePlayer(p){
+    if (remotePlayers[p.id]) return;
+    var group = buildRemoteAvatar(p.color || '#1e5fa8', p.name || 'Oyuncu');
+    group.position.set(p.x||0, p.y||0, p.z||0);
+    group.rotation.y = p.ry||0;
+    remotePlayers[p.id] = { group:group, target:{ x:p.x||0, y:p.y||0, z:p.z||0, ry:p.ry||0 } };
+  }
+  function removeRemotePlayer(id){
+    var rp = remotePlayers[id];
+    if (!rp) return;
+    scene.remove(rp.group);
+    delete remotePlayers[id];
+  }
+  function clearRemotePlayers(){
+    Object.keys(remotePlayers).forEach(removeRemotePlayer);
+  }
+
+  // ---- Networking (rooms, positions, chat) ----
+  var ws = null;
+  var myRbxId = null;
+  var currentRoomCode = null;
+  var pendingAction = null;
+  var wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+
+  function connectWs(){
+    ws = new WebSocket(wsProto + '//' + location.host);
+    ws.addEventListener('open', function(){
+      if (pendingAction){ ws.send(JSON.stringify(pendingAction)); pendingAction = null; }
+    });
+    ws.addEventListener('message', function(ev){
+      var msg;
+      try { msg = JSON.parse(ev.data); } catch(e){ return; }
+      if (msg.type === 'rbx-joined'){
+        myRbxId = msg.selfId;
+        currentRoomCode = msg.code;
+        clearRemotePlayers();
+        loadMap(msg.mapId);
+        character.position.set(0,0,0);
+        velocityY = 0; isGrounded = true;
+        (msg.players||[]).forEach(function(p){ if (p.id !== myRbxId) addRemotePlayer(p); });
+        document.getElementById('room-code-text').textContent = msg.code;
+        document.getElementById('room-badge').hidden = false;
+        document.getElementById('start-screen').style.display = 'none';
+        document.getElementById('chat-panel').hidden = false;
+        started = true;
+      } else if (msg.type === 'rbx-join-error'){
+        document.getElementById('lobby-error').textContent = 'Oda bulunamadı, kodu kontrol et.';
+      } else if (msg.type === 'rbx-player-joined'){
+        addRemotePlayer(msg);
+        appendChat('Sistem', (msg.name||'Biri') + ' katıldı');
+      } else if (msg.type === 'rbx-player-left'){
+        removeRemotePlayer(msg.id);
+      } else if (msg.type === 'rbx-pos'){
+        var rp = remotePlayers[msg.id];
+        if (rp) rp.target = { x:msg.x, y:msg.y, z:msg.z, ry:msg.ry };
+      } else if (msg.type === 'rbx-chat'){
+        appendChat(msg.name || 'Oyuncu', msg.text);
+      }
+    });
+    ws.addEventListener('close', function(){ setTimeout(connectWs, 1500); });
+  }
+  connectWs();
+
+  function sendOrQueue(action){
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(action));
+    else pendingAction = action;
+  }
+
+  var posTimer = setInterval(function(){
+    if (started && currentRoomCode && ws && ws.readyState === WebSocket.OPEN){
+      ws.send(JSON.stringify({ type:'rbx-pos', x:character.position.x, y:character.position.y, z:character.position.z, ry:charFacing }));
+    }
+  }, 100);
+
+  function appendChat(name, text){
+    var log = document.getElementById('chat-log');
+    var row = document.createElement('div');
+    var b = document.createElement('b');
+    b.textContent = name + ': ';
+    row.appendChild(b);
+    row.appendChild(document.createTextNode(text));
+    log.appendChild(row);
+    while (log.children.length > 40) log.removeChild(log.firstChild);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  document.getElementById('chat-input').addEventListener('keydown', function(e){
+    if (e.key !== 'Enter') return;
+    var val = this.value.trim();
+    if (!val) return;
+    sendOrQueue({ type:'rbx-chat', text: val.slice(0,140) });
+    this.value = '';
+  });
+
+  // ---- Lobby UI ----
+  var tabCreate = document.getElementById('tab-create');
+  var tabJoin = document.getElementById('tab-join');
+  var sectionCreate = document.getElementById('section-create');
+  var sectionJoin = document.getElementById('section-join');
+  tabCreate.addEventListener('click', function(){
+    tabCreate.classList.add('active'); tabJoin.classList.remove('active');
+    sectionCreate.hidden = false; sectionJoin.hidden = true;
+    document.getElementById('lobby-error').textContent = '';
+  });
+  tabJoin.addEventListener('click', function(){
+    tabJoin.classList.add('active'); tabCreate.classList.remove('active');
+    sectionJoin.hidden = false; sectionCreate.hidden = true;
+    document.getElementById('lobby-error').textContent = '';
+  });
+  document.getElementById('create-btn').addEventListener('click', function(){
+    var mapId = document.getElementById('map-select').value;
+    sendOrQueue({ type:'rbx-create', mapId:mapId, name:sessionName, color:sessionColor });
+  });
+  document.getElementById('join-btn').addEventListener('click', function(){
+    var code = document.getElementById('code-input').value.trim();
+    if (!code){ document.getElementById('lobby-error').textContent = 'Önce bir kod yaz.'; return; }
+    sendOrQueue({ type:'rbx-join', code:code, name:sessionName, color:sessionColor });
+  });
+  document.getElementById('code-input').addEventListener('keydown', function(e){
+    if (e.key === 'Enter') document.getElementById('join-btn').click();
+  });
 
   // ---- Movement state ----
   var keys = {};
@@ -358,17 +600,19 @@
     camera.position.lerp(desiredCamPos, Math.min(1, dt*10));
     camera.lookAt(targetPos);
 
+    // smooth remote players toward their latest reported position
+    Object.keys(remotePlayers).forEach(function(id){
+      var rp = remotePlayers[id];
+      rp.group.position.lerp(new THREE.Vector3(rp.target.x, rp.target.y, rp.target.z), Math.min(1, dt*10));
+      var diff = ((rp.target.ry - rp.group.rotation.y + Math.PI) % (Math.PI*2)) - Math.PI;
+      rp.group.rotation.y += diff * Math.min(1, dt*10);
+    });
+
     renderer.render(scene, camera);
   }
 
   var loadingEl = document.getElementById('loading');
   if (loadingEl) loadingEl.style.display = 'none';
-
-  document.getElementById('play-btn').addEventListener('click', function(){
-    started = true;
-    document.getElementById('start-screen').style.display = 'none';
-    renderer.domElement.focus();
-  });
 
   animate();
 })();
