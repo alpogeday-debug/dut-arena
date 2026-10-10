@@ -265,7 +265,7 @@ let nextId = 1;
 const rbxRooms = new Map();
 
 function rbxPlayerList(room) {
-  return Array.from(room.players.values()).map((p) => ({ id: p.id, name: p.name, color: p.color, x: p.x, y: p.y, z: p.z, ry: p.ry }));
+  return Array.from(room.players.values()).map((p) => ({ id: p.id, name: p.name, color: p.color, hero: p.hero, x: p.x, y: p.y, z: p.z, ry: p.ry }));
 }
 
 function broadcastRbx(code, data, excludeWs) {
@@ -728,16 +728,17 @@ wss.on('connection', (ws, req) => {
       const gameId = String(msg.gameId || '').trim().slice(0, 30) || 'lobby';
       const name = String(msg.name || ws.name || 'Misafir').trim().slice(0, 20) || 'Misafir';
       const color = typeof msg.color === 'string' ? msg.color.slice(0, 16) : '#4da3ff';
+      const hero = String(msg.hero || 'ironman').trim().slice(0, 20) || 'ironman';
       let room = rbxRooms.get(gameId);
       if (!room) {
         const mapId = String(msg.mapId || 'classic').trim().slice(0, 20) || 'classic';
         room = { mapId, players: new Map() };
         rbxRooms.set(gameId, room);
       }
-      room.players.set(ws, { id, name, color, x: 0, y: 0, z: 0, ry: 0 });
+      room.players.set(ws, { id, name, color, hero, x: 0, y: 0, z: 0, ry: 0 });
       ws.rbxRoom = gameId;
       ws.send(JSON.stringify({ type: 'rbx-joined', code: gameId, mapId: room.mapId, selfId: id, players: rbxPlayerList(room) }));
-      broadcastRbx(gameId, { type: 'rbx-player-joined', id, name, color, x: 0, y: 0, z: 0, ry: 0 }, ws);
+      broadcastRbx(gameId, { type: 'rbx-player-joined', id, name, color, hero, x: 0, y: 0, z: 0, ry: 0 }, ws);
       return;
     }
 
