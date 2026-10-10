@@ -247,7 +247,7 @@
   <a href="/">⬅️ Düt Arena'ya Dön</a>
   <div id="room-badge" hidden>🎮 <span id="room-code-text"></span></div>
   <button type="button" id="photo-btn" hidden title="Anı Yakala (P)">📸</button>
-  <div id="hint">WASD: Hareket • Shift: Koş • Boşluk: Zıpla (2x: Uç/Takla/Süper Zıplama) • E: Etkileşim • 1-4: Eşya Seç • G: Ver • F: Kılıç/Kalkan/Çekiç/Yumruk/Portal • L: Lazer • I: Zırh Kuşan • T: Çatırt • N: Eldiven Animasyonu • P: Anı Yakala (6 taş gerekir)</div>
+  <div id="hint">WASD: Hareket • Shift: Koş • Boşluk: Zıpla (2x: Uç/Takla/Süper Zıplama) • E: Etkileşim • 1-4: Eşya Seç • G: Ver (Strange: Gelecek Portalı) • X: Geçmiş Portalı (Strange) • F: Kılıç/Kalkan/Çekiç/Yumruk/Portal • L: Lazer • I: Zırh Kuşan • T: Çatırt (zamanı herkes için geri sarar) • N: Eldiven Animasyonu • P: Anı Yakala (6 taş gerekir)</div>
 </div>
 <div id="photo-flash" hidden></div>
 
@@ -1061,6 +1061,11 @@
         if (addToInventory(item)) appendChat('Sistem', (msg.fromName||'Biri') + ' sana bir ' + item.name + ' verdi! ' + item.emoji);
         else appendChat('Sistem', (msg.fromName||'Biri') + ' sana bir ' + item.name + ' vermek istedi ama envanterin dolu.');
       } else if (msg.type === 'rbx-action'){
+        if (msg.action === 'time-rewind'){
+          rewindTime();
+          appendChat('Sistem', '⏪ Biri Çatırt yaptı, zaman geri sarıldı!');
+          return;
+        }
         var rpA = remotePlayers[msg.id];
         if (!rpA) { /* no-op */ }
         else if (msg.action === 'swing' && !rpA.attacking){ rpA.attacking = true; rpA.attackT = 0; }
@@ -1384,7 +1389,8 @@
     }
     if (e.repeat) return;
     if (e.code === 'KeyE') tryInteract();
-    if (e.code === 'KeyG') tryGive();
+    if (e.code === 'KeyG'){ if (selectedHero === 'strange') openFuturePortal(); else tryGive(); }
+    if (e.code === 'KeyX' && selectedHero === 'strange') openPastPortal();
     if (e.code === 'KeyF') doPrimaryAction();
     if (e.code === 'KeyL') fireLaser();
     if (e.code === 'KeyI') toggleArmor();
@@ -1582,11 +1588,8 @@
     g.userData.ring = ring;
     return g;
   }
-  function doPortal(){
+  function spawnPortalTo(dest, msgPrefix){
     if (!started || inCutscene || portals.length > 0) return;
-    var others = GAMES.filter(function(gm){ return gm.id !== currentRoomCode; });
-    if (!others.length) return;
-    var dest = others[Math.floor(Math.random() * others.length)];
     var fwd = new THREE.Vector3(Math.sin(charFacing), 0, Math.cos(charFacing));
     var pos = character.position.clone().addScaledVector(fwd, 3);
     var mesh = buildPortalMesh();
@@ -1594,7 +1597,23 @@
     mesh.rotation.y = charFacing;
     scene.add(mesh);
     portals.push({ mesh:mesh, x:pos.x, z:pos.z, destId:dest.id, destTitle:dest.title, t:0 });
-    appendChat('Sistem', '🌀 Portal açıldı: ' + dest.title + '\'na gidiyor! İçinden yürü.');
+    appendChat('Sistem', msgPrefix + ' ' + dest.title + '\'na gidiyor! İçinden yürü.');
+  }
+  function doPortal(){
+    var others = GAMES.filter(function(gm){ return gm.id !== currentRoomCode; });
+    if (!others.length) return;
+    var dest = others[Math.floor(Math.random() * others.length)];
+    spawnPortalTo(dest, '🌀 Portal açıldı:');
+  }
+  function openFuturePortal(){
+    var idx = GAMES.findIndex(function(gm){ return gm.id === currentRoomCode; });
+    var dest = GAMES[(idx + 1 + GAMES.length) % GAMES.length];
+    spawnPortalTo(dest, '⏩ Geleceğe portal açıldı:');
+  }
+  function openPastPortal(){
+    var idx = GAMES.findIndex(function(gm){ return gm.id === currentRoomCode; });
+    var dest = GAMES[(idx - 1 + GAMES.length) % GAMES.length];
+    spawnPortalTo(dest, '⏪ Geçmişe portal açıldı:');
   }
   function usePortal(portal){
     portals = [];
@@ -1841,11 +1860,30 @@
       snapFx.push({ mesh:p, dir:dir, t:0 });
     }
   }
+  function spawnTimeRipple(pos){
+    var ring = new THREE.Mesh(
+      new THREE.RingGeometry(0.3, 0.6, 40),
+      new THREE.MeshBasicMaterial({ color:0x6ad0ff, transparent:true, opacity:0.9, side:THREE.DoubleSide })
+    );
+    ring.rotation.x = -Math.PI/2;
+    ring.position.set(pos.x, 0.06, pos.z);
+    scene.add(ring);
+    shockwaves.push({ mesh:ring, t:0 });
+  }
+  function rewindTime(){
+    spawnTimeRipple(character.position);
+    character.position.set(0, 1.5, 0);
+    velocityY = 0;
+    isFlying = false;
+    isGrounded = false;
+  }
   function doSnap(){
     if (!started || !hasGauntlet) return;
     spawnSnapEffect(character.position, character.rotation.y);
-    appendChat('Sistem', '💥 Çatırttın!');
+    appendChat('Sistem', '💥 Çatırttın! Zaman geri sarılıyor...');
     sendOrQueue({ type:'rbx-action', action:'snap' });
+    sendOrQueue({ type:'rbx-action', action:'time-rewind' });
+    rewindTime();
     unlockAchv('snap');
   }
 
