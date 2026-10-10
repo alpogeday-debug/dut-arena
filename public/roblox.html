@@ -56,17 +56,29 @@
     border:1px solid rgba(255,255,255,.2); border-radius:10px; padding:9px 16px; cursor:pointer;
   }
   .ghost-btn:hover{ background:rgba(255,255,255,.16); }
+  .name-row{ display:flex; gap:8px; margin-bottom:14px; }
+  .name-row input{
+    flex:1; box-sizing:border-box; font-size:14px; padding:9px 12px;
+    border-radius:9px; border:1px solid rgba(255,255,255,.2); background:rgba(255,255,255,.06); color:#fff;
+  }
   .game-grid{
-    display:grid; grid-template-columns:repeat(auto-fill, minmax(130px, 1fr)); gap:10px;
-    max-height:62vh; overflow-y:auto; padding-right:4px;
+    display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:14px;
+    max-height:62vh; overflow-y:auto; padding:4px 4px 4px 0; text-align:left;
   }
   .game-tile{
-    cursor:pointer; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.15);
-    border-radius:12px; padding:14px 8px; text-align:center; transition:background .12s;
+    cursor:pointer; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12);
+    border-radius:10px; overflow:hidden; transition:transform .12s, border-color .12s;
   }
-  .game-tile:hover{ background:#1e5fa8; border-color:#1e5fa8; }
-  .game-tile .icon{ font-size:30px; display:block; }
-  .game-tile .title{ font-size:12px; font-weight:700; margin-top:6px; line-height:1.3; }
+  .game-tile:hover{ transform:translateY(-2px); border-color:#4da3ff; }
+  .game-tile .thumb{
+    width:100%; aspect-ratio:1/1; display:flex; align-items:center; justify-content:center; font-size:46px;
+  }
+  .game-tile .meta{ padding:8px 9px 10px; }
+  .game-tile .title{
+    font-size:12.5px; font-weight:700; line-height:1.25; margin:0 0 4px;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+  }
+  .game-tile .rating{ font-size:11px; color:#9aa0b0; }
   .swatch-row{ display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; justify-content:center; }
   .swatch{ width:34px; height:34px; border-radius:8px; cursor:pointer; border:3px solid transparent; }
   .swatch.selected{ border-color:#fff; }
@@ -93,6 +105,11 @@
     background:rgba(10,10,18,.6); color:#fff;
   }
   #chat-input::placeholder{ color:#8d8da8; }
+  #interact-prompt{
+    position:fixed; left:50%; bottom:120px; transform:translateX(-50%); z-index:10;
+    color:#fff; font-size:14px; font-weight:700; background:rgba(20,20,30,.75);
+    border:1px solid rgba(255,255,255,.25); border-radius:10px; padding:8px 16px;
+  }
 </style>
 </head>
 <body>
@@ -104,6 +121,9 @@
     <div class="home-top-row">
       <h1>🎮 Roblox Dünyası</h1>
       <button type="button" class="ghost-btn" id="avatar-btn">🧑 Avatar</button>
+    </div>
+    <div class="name-row">
+      <input type="text" id="name-input" maxlength="20" placeholder="Görünecek adın">
     </div>
     <p class="lobby-hint">Bir oyun seç, katıldığın herkesle aynı dünyaya düşersin</p>
     <div class="game-grid" id="game-grid"></div>
@@ -124,8 +144,10 @@
 <div id="hud">
   <a href="/">⬅️ Düt Arena'ya Dön</a>
   <div id="room-badge" hidden>🎮 <span id="room-code-text"></span></div>
-  <div id="hint">WASD: Hareket • Boşluk: Zıpla • Fare: Kamera</div>
+  <div id="hint">WASD: Hareket • Shift: Koş • Boşluk: Zıpla • Fare: Kamera</div>
 </div>
+
+<div id="interact-prompt" hidden></div>
 
 <div id="chat-panel" hidden>
   <div id="chat-log"></div>
@@ -194,6 +216,32 @@
       if (Math.abs(x - b.x) < b.halfW && Math.abs(z - b.z) < b.halfD) return true;
     }
     return false;
+  }
+
+  // Interactable objects — floating markers you can press E near to trigger something
+  var interactables = [];
+  var INTERACT_RADIUS = 3.2;
+  function addInteractable(x, z, label, onInteract){
+    var marker = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.45),
+      new THREE.MeshStandardMaterial({ color:0xffd23f, emissive:0x7a5a00, roughness:0.4 })
+    );
+    marker.position.set(x, 1.6, z);
+    marker.castShadow = true;
+    scene.add(marker);
+    mapMeshes.push(marker);
+    interactables.push({ x:x, z:z, label:label, marker:marker, onInteract:onInteract });
+  }
+  function tryInteract(){
+    if (!started) return;
+    for (var i=0; i<interactables.length; i++){
+      var it = interactables[i];
+      var dx = character.position.x - it.x, dz = character.position.z - it.z;
+      if (dx*dx + dz*dz <= INTERACT_RADIUS*INTERACT_RADIUS){
+        it.onInteract();
+        return;
+      }
+    }
   }
 
   function addHouse(x, z, color){
@@ -325,11 +373,24 @@
     }
   };
 
+  var INTERACT_FLAVORS = {
+    ciftlik: { label:'🌾 Hayvanları Besle', msg:'🐾 Hayvanları besledin!' },
+    restoran: { label:'🍳 Sipariş Hazırla', msg:'🍔 Bir sipariş hazırladın!' },
+    ajan: { label:'🔍 İpucu Ara', msg:'🕵️ Bir ipucu buldun!' },
+    sehir: { label:'🏗️ İnşa Et', msg:'🏙️ Yeni bir bina inşa ettin!' },
+    balik: { label:'🎣 Olta At', msg:'🐟 Bir balık yakaladın!' },
+    zombi: { label:'🔧 Barikat Kur', msg:'🧟 Barikatı sağlamlaştırdın!' },
+    basketbol: { label:'🏀 Şut At', msg:'🏀 Potayı buldun!' },
+    ada: { label:'🔥 Ateş Yak', msg:'🔥 Kamp ateşini yaktın!' }
+  };
   function loadMap(mapId){
     mapMeshes.forEach(function(m){ scene.remove(m); });
     mapMeshes = [];
     solidBlocks = [];
+    interactables.length = 0;
     (MAP_THEMES[mapId] || MAP_THEMES.classic)();
+    var flavor = INTERACT_FLAVORS[mapId] || { label:'🎁 Sandığı Aç', msg:'🎁 Sandıktan bir ödül çıktı!' };
+    addInteractable(0, -3, flavor.label, function(){ appendChat('Sistem', flavor.msg); });
   }
   loadMap('classic');
 
@@ -556,29 +617,46 @@
     this.value = '';
   });
 
+  // ---- Name input (session name, editable, persisted) ----
+  var nameInput = document.getElementById('name-input');
+  var savedName = localStorage.getItem('dutArenaRbxName');
+  if (savedName) sessionName = savedName;
+  nameInput.value = sessionName;
+  nameInput.addEventListener('input', function(){
+    var v = nameInput.value.trim().slice(0, 20);
+    sessionName = v || 'Misafir';
+    localStorage.setItem('dutArenaRbxName', sessionName);
+    nameSprite.material.map.dispose();
+    nameSprite.material.map = makeNameTexture(sessionName);
+    nameSprite.material.needsUpdate = true;
+  });
+
   // ---- Game grid (home screen) ----
   var GAMES = [
-    { id:'kacis', icon:'🏃', title:'Kaçış Binası' },
-    { id:'ciftlik', icon:'🐾', title:'Evcil Hayvan Çiftliği' },
-    { id:'kule', icon:'🗼', title:'Zorluk Kulesi' },
-    { id:'mahalle', icon:'🏘️', title:'Komşu Mahallesi' },
-    { id:'arena', icon:'⚔️', title:'Savaş Arenası' },
-    { id:'yaris', icon:'🏎️', title:'Yarış Pisti' },
-    { id:'ada', icon:'🏝️', title:'Hayatta Kalma Adası' },
-    { id:'restoran', icon:'🍔', title:'Restoranını İşlet' },
-    { id:'ajan', icon:'🕵️', title:'Gizli Ajan' },
-    { id:'sehir', icon:'🏗️', title:'Şehir İnşa Et' },
-    { id:'zombi', icon:'🧟', title:'Zombi Kaçışı' },
-    { id:'balik', icon:'🎣', title:'Balık Tut' },
-    { id:'basketbol', icon:'🏀', title:'Basketbol Sahası' },
-    { id:'parkur', icon:'🧗', title:'Parkur Haritası' },
-    { id:'skatepark', icon:'🛹', title:'Skate Parkı' }
+    { id:'kacis', icon:'🏃', title:'Kaçış Binası', grad:'#2c3e50,#4a6a8a', rating:'👍 92%' },
+    { id:'ciftlik', icon:'🐾', title:'Evcil Hayvan Çiftliği', grad:'#6ab04a,#9fcf7a', rating:'👍 96%' },
+    { id:'kule', icon:'🗼', title:'Zorluk Kulesi', grad:'#636e72,#9aa0ad', rating:'👍 89%' },
+    { id:'mahalle', icon:'🏘️', title:'Komşu Mahallesi', grad:'#27ae60,#9fcf7a', rating:'👍 90%' },
+    { id:'arena', icon:'⚔️', title:'Savaş Arenası', grad:'#6b3a3a,#b08a3a', rating:'👍 94%' },
+    { id:'yaris', icon:'🏎️', title:'Yarış Pisti', grad:'#2d3436,#d94a3a', rating:'👍 91%' },
+    { id:'ada', icon:'🏝️', title:'Hayatta Kalma Adası', grad:'#2980b9,#d8c27a', rating:'👍 93%' },
+    { id:'restoran', icon:'🍔', title:'Restoranını İşlet', grad:'#bfa06a,#8a5a3a', rating:'👍 88%' },
+    { id:'ajan', icon:'🕵️', title:'Gizli Ajan', grad:'#2c2c38,#555570', rating:'👍 95%' },
+    { id:'sehir', icon:'🏗️', title:'Şehir İnşa Et', grad:'#4a6a8a,#7a8aa0', rating:'👍 87%' },
+    { id:'zombi', icon:'🧟', title:'Zombi Kaçışı', grad:'#355130,#5a6b4a', rating:'👍 97%' },
+    { id:'balik', icon:'🎣', title:'Balık Tut', grad:'#1e5fa8,#3a6a8a', rating:'👍 86%' },
+    { id:'basketbol', icon:'🏀', title:'Basketbol Sahası', grad:'#b5652f,#e0e0e0', rating:'👍 90%' },
+    { id:'parkur', icon:'🧗', title:'Parkur Haritası', grad:'#8a8f6e,#8e5a2b', rating:'👍 92%' },
+    { id:'skatepark', icon:'🛹', title:'Skate Parkı', grad:'#636e72,#b0b0b8', rating:'👍 89%' }
   ];
   var gameGrid = document.getElementById('game-grid');
   GAMES.forEach(function(game){
     var tile = document.createElement('div');
     tile.className = 'game-tile';
-    tile.innerHTML = '<span class="icon">' + game.icon + '</span><span class="title">' + game.title + '</span>';
+    var colors = game.grad.split(',');
+    tile.innerHTML =
+      '<div class="thumb" style="background:linear-gradient(135deg,' + colors[0] + ',' + colors[1] + ')">' + game.icon + '</div>' +
+      '<div class="meta"><p class="title">' + game.title + '</p><p class="rating">' + game.rating + '</p></div>';
     tile.addEventListener('click', function(){
       sendOrQueue({ type:'rbx-enter', gameId: game.id, mapId: game.id, name: sessionName, color: avatarShirt });
       document.getElementById('room-code-text').textContent = game.title;
@@ -621,17 +699,28 @@
 
   // ---- Movement state ----
   var keys = {};
+  function isTypingTarget(e){
+    var t = e.target;
+    return t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA');
+  }
   window.addEventListener('keydown', function(e){
+    if (isTypingTarget(e)) return;
     keys[e.code] = true;
     if (e.code === 'Space') e.preventDefault();
+    if (e.code === 'KeyE') tryInteract();
   });
-  window.addEventListener('keyup', function(e){ keys[e.code] = false; });
+  window.addEventListener('keyup', function(e){
+    if (isTypingTarget(e)) return;
+    keys[e.code] = false;
+  });
 
   var velocityY = 0;
   var isGrounded = true;
   var GRAVITY = -32;
   var JUMP_SPEED = 14;
-  var MOVE_SPEED = 12;
+  var WALK_SPEED = 12;
+  var RUN_SPEED = 20;
+  var MOVE_SPEED = WALK_SPEED;
   var started = false;
   var charFacing = 0; // radians
   var moving = false;
@@ -688,6 +777,8 @@
     }
 
     moving = move.lengthSq() > 0.0001;
+    var running = moving && (keys['ShiftLeft'] || keys['ShiftRight']);
+    MOVE_SPEED = running ? RUN_SPEED : WALK_SPEED;
     if (moving){
       move.normalize();
       var stepX = move.x * MOVE_SPEED * dt;
@@ -700,7 +791,7 @@
       var diff = ((targetFacing - charFacing + Math.PI) % (Math.PI*2)) - Math.PI;
       charFacing += diff * Math.min(1, dt*12);
       character.rotation.y = charFacing;
-      walkT += dt * 8;
+      walkT += dt * (running ? 13 : 8);
     } else {
       walkT += dt * 2;
     }
@@ -756,6 +847,18 @@
       var diff = ((rp.target.ry - rp.group.rotation.y + Math.PI) % (Math.PI*2)) - Math.PI;
       rp.group.rotation.y += diff * Math.min(1, dt*10);
     });
+
+    // bob interactable markers, and show a prompt when close enough to press E
+    var nearestLabel = null;
+    interactables.forEach(function(it){
+      it.marker.position.y = 1.6 + Math.sin(walkT*0.3 + it.x) * 0.15;
+      it.marker.rotation.y += dt;
+      var dx = character.position.x - it.x, dz = character.position.z - it.z;
+      if (started && dx*dx + dz*dz <= INTERACT_RADIUS*INTERACT_RADIUS) nearestLabel = it.label;
+    });
+    var prompt = document.getElementById('interact-prompt');
+    if (nearestLabel){ prompt.textContent = 'E - ' + nearestLabel; prompt.hidden = false; }
+    else { prompt.hidden = true; }
 
     renderer.render(scene, camera);
   }
