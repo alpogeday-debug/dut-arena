@@ -163,7 +163,7 @@
 <div id="hud">
   <a href="/">⬅️ Düt Arena'ya Dön</a>
   <div id="room-badge" hidden>🎮 <span id="room-code-text"></span></div>
-  <div id="hint">WASD: Hareket • Shift: Koş • Boşluk: Zıpla (2x: Uç/Takla) • E: Etkileşim • 1-4: Eşya Seç • G: Ver • F: Kılıç/Kalkan • L: Lazer • I: Zırh Kuşan</div>
+  <div id="hint">WASD: Hareket • Shift: Koş • Boşluk: Zıpla (2x: Uç/Takla/Süper Zıplama) • E: Etkileşim • 1-4: Eşya Seç • G: Ver • F: Kılıç/Kalkan/Çekiç/Yumruk • L: Lazer • I: Zırh Kuşan</div>
 </div>
 
 <div id="interact-prompt" hidden></div>
@@ -595,13 +595,29 @@
     g.traverse(function(m){ if (m.isMesh) m.castShadow = true; });
     return g;
   }
+  function buildHammer(){
+    var g = new THREE.Group();
+    var handle = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1.1, 0.16), new THREE.MeshStandardMaterial({ color:0x6b4a2b, roughness:0.7 }));
+    handle.position.y = -0.55;
+    var head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.45, 0.42), new THREE.MeshStandardMaterial({ color:0x8a8f99, metalness:0.6, roughness:0.3 }));
+    head.position.y = -1.0;
+    g.add(handle); g.add(head);
+    g.traverse(function(m){ if (m.isMesh) m.castShadow = true; });
+    return g;
+  }
+  function buildWeaponMesh(hero){
+    if (hero === 'captain') return buildShield();
+    if (hero === 'thor') return buildHammer();
+    return buildSword(); // ironman + hulk both go bare-fisted below, but default to sword mesh builder
+  }
   var selectedHero = 'ironman';
   var equippedWeapon = null;
   function attachWeapon(hero){
-    if (equippedWeapon){ rightArm.remove(equippedWeapon); }
-    equippedWeapon = hero === 'captain' ? buildShield() : buildSword();
+    if (equippedWeapon){ rightArm.remove(equippedWeapon); equippedWeapon = null; }
+    if (hero === 'hulk') return; // bare fists, nothing to hold
+    equippedWeapon = buildWeaponMesh(hero);
     equippedWeapon.position.set(0.25, -2.0, 0.1);
-    equippedWeapon.rotation.z = hero === 'captain' ? 0 : -0.2;
+    equippedWeapon.rotation.z = (hero === 'captain') ? 0 : -0.2;
     rightArm.add(equippedWeapon);
   }
   attachWeapon(selectedHero);
@@ -694,10 +710,12 @@
     var rightArmR = limb(0.6, 2, 0.6, SKIN);
     rightArmR.position.set(1.3, 3.9, 0);
     g.add(rightArmR);
-    var weaponR = hero === 'captain' ? buildShield() : buildSword();
-    weaponR.position.set(0.25, -2.0, 0.1);
-    weaponR.rotation.z = hero === 'captain' ? 0 : -0.2;
-    rightArmR.add(weaponR);
+    if (hero !== 'hulk'){
+      var weaponR = buildWeaponMesh(hero);
+      weaponR.position.set(0.25, -2.0, 0.1);
+      weaponR.rotation.z = (hero === 'captain') ? 0 : -0.2;
+      rightArmR.add(weaponR);
+    }
     var legGeo = new THREE.BoxGeometry(0.75,2,0.75);
     var leftLegM = new THREE.Mesh(legGeo, new THREE.MeshStandardMaterial({ color:PANTS, roughness:0.7 }));
     leftLegM.position.set(-0.5, 1, 0); leftLegM.castShadow = true;
@@ -717,6 +735,15 @@
     shadow.rotation.x = -Math.PI/2;
     shadow.position.y = 0.02;
     scene.add(shadow);
+    if (hero === 'hulk'){
+      g.scale.setScalar(1.35);
+      torsoM.material.color.set(0x4caf50);
+      headM.material.color.set(0x5fbf5f);
+      leftArmR.children[0].material.color.set(0x5fbf5f);
+      rightArmR.children[0].material.color.set(0x5fbf5f);
+      leftLegM.material.color.set(0x3a1a5a);
+      rightLegM.material.color.set(0x3a1a5a);
+    }
     return {
       group:g, rightArm:rightArmR, shadow:shadow, torso:torsoM, head:headM,
       leftArmMesh:leftArmR.children[0], rightArmMesh:rightArmR.children[0],
@@ -724,15 +751,16 @@
     };
   }
   function setRemoteArmor(rp, armored){
-    var SKIN_C = new THREE.Color(SKIN), PANTS_C = new THREE.Color(PANTS);
     var scheme = ARMOR_COLOR_SCHEMES[rp.hero] || ARMOR_COLOR_SCHEMES.ironman;
     var MAIN = new THREE.Color(scheme.main), HEAD = new THREE.Color(scheme.head), DARK = new THREE.Color(scheme.dark);
+    var baseHead = rp.hero === 'hulk' ? new THREE.Color(0x5fbf5f) : new THREE.Color(SKIN);
+    var baseLeg = rp.hero === 'hulk' ? new THREE.Color(0x3a1a5a) : new THREE.Color(PANTS);
     rp.torso.material.color.copy(armored ? MAIN : rp.baseShirt);
-    rp.head.material.color.copy(armored ? HEAD : SKIN_C);
-    rp.leftArmMesh.material.color.copy(armored ? MAIN : SKIN_C);
-    rp.rightArmMesh.material.color.copy(armored ? MAIN : SKIN_C);
-    rp.leftLeg.material.color.copy(armored ? DARK : PANTS_C);
-    rp.rightLeg.material.color.copy(armored ? DARK : PANTS_C);
+    rp.head.material.color.copy(armored ? HEAD : baseHead);
+    rp.leftArmMesh.material.color.copy(armored ? MAIN : baseHead);
+    rp.rightArmMesh.material.color.copy(armored ? MAIN : baseHead);
+    rp.leftLeg.material.color.copy(armored ? DARK : baseLeg);
+    rp.rightLeg.material.color.copy(armored ? DARK : baseLeg);
   }
   function addRemotePlayer(p){
     if (remotePlayers[p.id]) return;
@@ -810,7 +838,8 @@
         else if (msg.action === 'armor-on'){ setRemoteArmor(rpA, true); }
         else if (msg.action === 'armor-off'){ setRemoteArmor(rpA, false); }
         else if (msg.action === 'flip' && !rpA.flipping){ rpA.flipping = true; rpA.flipT = 0; }
-        else if (msg.action === 'shield-throw' && !rpA.attacking){ rpA.attacking = true; rpA.attackT = 0; }
+        else if (msg.action === 'weapon-throw' && !rpA.attacking){ rpA.attacking = true; rpA.attackT = 0; }
+        else if (msg.action === 'pound'){ spawnShockwave(rpA.group.position); }
       }
     });
     ws.addEventListener('close', function(){ setTimeout(connectWs, 1500); });
@@ -963,8 +992,24 @@
   // ---- Super hero picker ----
   var HEROES = [
     { id:'ironman', icon:'🦾', title:'Iron Man', grad:'#b0241a,#d4af37' },
-    { id:'captain', icon:'🛡️', title:'Kaptan Amerika', grad:'#1f4fa8,#e8e8e8' }
+    { id:'captain', icon:'🛡️', title:'Kaptan Amerika', grad:'#1f4fa8,#e8e8e8' },
+    { id:'thor', icon:'🔨', title:'Thor', grad:'#2b4a7a,#c8ccd4' },
+    { id:'hulk', icon:'💪', title:'Hulk', grad:'#2d6a2d,#6a3a8a' }
   ];
+  function getHeroBaseColors(hero){
+    if (hero === 'hulk') return { torso:0x4caf50, head:0x5fbf5f, limb:0x5fbf5f, leg:0x3a1a5a };
+    return { torso:avatarShirt, head:SKIN, limb:SKIN, leg:avatarPants };
+  }
+  function applyHeroLook(hero){
+    character.scale.setScalar(hero === 'hulk' ? 1.35 : 1);
+    var base = getHeroBaseColors(hero);
+    torso.material.color.set(base.torso);
+    head.material.color.set(base.head);
+    leftArm.children[0].material.color.set(base.limb);
+    rightArm.children[0].material.color.set(base.limb);
+    leftLeg.children[0].material.color.set(base.leg);
+    rightLeg.children[0].material.color.set(base.leg);
+  }
   var heroGrid = document.getElementById('hero-grid');
   HEROES.forEach(function(hero){
     var tile = document.createElement('div');
@@ -976,6 +1021,7 @@
     tile.addEventListener('click', function(){
       selectedHero = hero.id;
       attachWeapon(selectedHero);
+      applyHeroLook(selectedHero);
       document.getElementById('hero-screen').classList.remove('open');
       sendOrQueue({ type:'rbx-enter', gameId:'kahraman', mapId:'kahraman', name:sessionName, color:avatarShirt, hero:selectedHero });
       document.getElementById('room-code-text').textContent = 'Süper Kahraman Şehri — ' + hero.title;
@@ -1034,7 +1080,9 @@
       if (!e.repeat){
         var now = performance.now();
         if (now - lastSpaceTapTime < 350){
-          if (selectedHero === 'captain') doFlip(); else toggleFly();
+          if (selectedHero === 'captain') doFlip();
+          else if (selectedHero === 'hulk') superJump();
+          else toggleFly();
         }
         lastSpaceTapTime = now;
       }
@@ -1042,7 +1090,11 @@
     if (e.repeat) return;
     if (e.code === 'KeyE') tryInteract();
     if (e.code === 'KeyG') tryGive();
-    if (e.code === 'KeyF'){ if (selectedHero === 'captain') throwShield(); else tryAttack(); }
+    if (e.code === 'KeyF'){
+      if (selectedHero === 'captain' || selectedHero === 'thor') throwShield();
+      else if (selectedHero === 'hulk') groundPound();
+      else tryAttack();
+    }
     if (e.code === 'KeyL') fireLaser();
     if (e.code === 'KeyI') toggleArmor();
     if (e.code === 'Digit1') selectSlot(0);
@@ -1091,6 +1143,10 @@
   var throwT = 0;
   var THROW_DURATION = 0.6;
   var throwProjectile = null;
+  var isPounding = false;
+  var poundT = 0;
+  var POUND_DURATION = 0.45;
+  var shockwaves = [];
 
   function doFlip(){
     if (!started || isFlipping || !isGrounded) return;
@@ -1101,15 +1157,40 @@
     sendOrQueue({ type:'rbx-action', action:'flip' });
   }
 
+  function superJump(){
+    if (!started || !isGrounded) return;
+    velocityY = JUMP_SPEED * 2.1;
+    isGrounded = false;
+  }
+
   function throwShield(){
     if (!started || isThrowingShield) return;
     isThrowingShield = true;
     throwT = 0;
     isAttacking = true; attackT = 0;
     if (equippedWeapon) equippedWeapon.visible = false;
-    throwProjectile = buildShield();
+    throwProjectile = buildWeaponMesh(selectedHero);
     scene.add(throwProjectile);
-    sendOrQueue({ type:'rbx-action', action:'shield-throw' });
+    sendOrQueue({ type:'rbx-action', action:'weapon-throw' });
+  }
+
+  function spawnShockwave(pos){
+    var ring = new THREE.Mesh(
+      new THREE.RingGeometry(0.3, 0.6, 32),
+      new THREE.MeshBasicMaterial({ color:0x8a5aff, transparent:true, opacity:0.85, side:THREE.DoubleSide })
+    );
+    ring.rotation.x = -Math.PI/2;
+    ring.position.set(pos.x, 0.05, pos.z);
+    scene.add(ring);
+    shockwaves.push({ mesh:ring, t:0 });
+  }
+
+  function groundPound(){
+    if (!started || isPounding) return;
+    isPounding = true;
+    poundT = 0;
+    spawnShockwave(character.position);
+    sendOrQueue({ type:'rbx-action', action:'pound' });
   }
 
   function toggleFly(){
@@ -1163,7 +1244,9 @@
 
   var ARMOR_COLOR_SCHEMES = {
     ironman: { main:0xb0241a, head:0xd4af37, dark:0x8a1a12, visor:0x3ad6ff },
-    captain: { main:0x1f4fa8, head:0xe8e8e8, dark:0x15356e, visor:0xcc2222 }
+    captain: { main:0x1f4fa8, head:0xe8e8e8, dark:0x15356e, visor:0xcc2222 },
+    thor: { main:0x2b4a7a, head:0xc8ccd4, dark:0x1a2e4a, visor:0xffd23f },
+    hulk: { main:0x2d6a2d, head:0x5fbf5f, dark:0x4a1a6a, visor:0xaaff55 }
   };
   var ARMOR_PARTS = [];
   function buildArmorParts(){
@@ -1171,13 +1254,16 @@
     var mainC = new THREE.Color(scheme.main), headC = new THREE.Color(scheme.head), darkC = new THREE.Color(scheme.dark);
     visor.material.color.set(scheme.visor);
     visor.material.emissive.set(scheme.visor);
+    var base = getHeroBaseColors(selectedHero);
+    // "from" is always the hero's normal (un-armored) look, "to" the armor scheme — the
+    // animation direction (equip vs un-equip) is handled separately by colorT in animate()
     ARMOR_PARTS = [
-      { mat:torso.material, from:new THREE.Color(SHIRT), to:mainC },
-      { mat:head.material, from:new THREE.Color(SKIN), to:headC },
-      { mat:leftArm.children[0].material, from:new THREE.Color(SKIN), to:mainC },
-      { mat:rightArm.children[0].material, from:new THREE.Color(SKIN), to:mainC },
-      { mat:leftLeg.children[0].material, from:new THREE.Color(PANTS), to:darkC },
-      { mat:rightLeg.children[0].material, from:new THREE.Color(PANTS), to:darkC }
+      { mat:torso.material, from:new THREE.Color(base.torso), to:mainC },
+      { mat:head.material, from:new THREE.Color(base.head), to:headC },
+      { mat:leftArm.children[0].material, from:new THREE.Color(base.limb), to:mainC },
+      { mat:rightArm.children[0].material, from:new THREE.Color(base.limb), to:mainC },
+      { mat:leftLeg.children[0].material, from:new THREE.Color(base.leg), to:darkC },
+      { mat:rightLeg.children[0].material, from:new THREE.Color(base.leg), to:darkC }
     ];
   }
   function toggleArmor(){
@@ -1389,6 +1475,25 @@
       fireT += dt;
       rightArm.rotation.x = -1.5;
       if (fireT >= FIRE_DURATION) isFiring = false;
+    }
+    if (isPounding){
+      poundT += dt;
+      var pp = Math.min(1, poundT / POUND_DURATION);
+      var raise = pp < 0.4 ? pp/0.4 : 1 - (pp-0.4)/0.6;
+      leftArm.rotation.x = -raise * 2.3;
+      rightArm.rotation.x = -raise * 2.3;
+      if (poundT >= POUND_DURATION) isPounding = false;
+    }
+    shockwaves.forEach(function(s){
+      s.t += dt;
+      var sp = Math.min(1, s.t / 0.5);
+      var r = 0.3 + sp * 7;
+      s.mesh.geometry.dispose();
+      s.mesh.geometry = new THREE.RingGeometry(r, r + 0.35, 32);
+      s.mesh.material.opacity = Math.max(0, 0.85 * (1 - sp));
+    });
+    for (var si2 = shockwaves.length - 1; si2 >= 0; si2--){
+      if (shockwaves[si2].t > 0.5){ scene.remove(shockwaves[si2].mesh); shockwaves.splice(si2, 1); }
     }
     if (armorAnimating){
       armorAnimT += dt;
