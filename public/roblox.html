@@ -163,7 +163,7 @@
 <div id="hud">
   <a href="/">⬅️ Düt Arena'ya Dön</a>
   <div id="room-badge" hidden>🎮 <span id="room-code-text"></span></div>
-  <div id="hint">WASD: Hareket • Shift: Koş • Boşluk: Zıpla (2x: Uç, zırh gerekir) • E: Etkileşim • 1-4: Eşya Seç • G: Ver • F: Kılıç • L: Lazer • I: Zırh Kuşan</div>
+  <div id="hint">WASD: Hareket • Shift: Koş • Boşluk: Zıpla (2x: Uç/Takla) • E: Etkileşim • 1-4: Eşya Seç • G: Ver • F: Kılıç/Kalkan • L: Lazer • I: Zırh Kuşan</div>
 </div>
 
 <div id="interact-prompt" hidden></div>
@@ -744,7 +744,7 @@
       group: built.group, rightArm: built.rightArm, shadow: built.shadow, torso: built.torso, head: built.head,
       leftArmMesh: built.leftArmMesh, rightArmMesh: built.rightArmMesh, leftLeg: built.leftLeg, rightLeg: built.rightLeg,
       baseShirt: built.torso.material.color.clone(), hero: hero,
-      attacking:false, attackT:0,
+      attacking:false, attackT:0, flipping:false, flipT:0,
       target:{ x:p.x||0, y:p.y||0, z:p.z||0, ry:p.ry||0 }
     };
   }
@@ -809,6 +809,8 @@
         else if (msg.action === 'laser'){ spawnLaserBeam(rpA.group, rpA.group.rotation.y); }
         else if (msg.action === 'armor-on'){ setRemoteArmor(rpA, true); }
         else if (msg.action === 'armor-off'){ setRemoteArmor(rpA, false); }
+        else if (msg.action === 'flip' && !rpA.flipping){ rpA.flipping = true; rpA.flipT = 0; }
+        else if (msg.action === 'shield-throw' && !rpA.attacking){ rpA.attacking = true; rpA.attackT = 0; }
       }
     });
     ws.addEventListener('close', function(){ setTimeout(connectWs, 1500); });
@@ -1031,14 +1033,16 @@
       e.preventDefault();
       if (!e.repeat){
         var now = performance.now();
-        if (now - lastSpaceTapTime < 350) toggleFly();
+        if (now - lastSpaceTapTime < 350){
+          if (selectedHero === 'captain') doFlip(); else toggleFly();
+        }
         lastSpaceTapTime = now;
       }
     }
     if (e.repeat) return;
     if (e.code === 'KeyE') tryInteract();
     if (e.code === 'KeyG') tryGive();
-    if (e.code === 'KeyF') tryAttack();
+    if (e.code === 'KeyF'){ if (selectedHero === 'captain') throwShield(); else tryAttack(); }
     if (e.code === 'KeyL') fireLaser();
     if (e.code === 'KeyI') toggleArmor();
     if (e.code === 'Digit1') selectSlot(0);
@@ -1080,6 +1084,33 @@
   var armorAnimating = false;
   var ARMOR_ANIM_DURATION = 0.7;
   var armorPieces = []; // { mesh, from, to }
+  var isFlipping = false;
+  var flipT = 0;
+  var FLIP_DURATION = 0.55;
+  var isThrowingShield = false;
+  var throwT = 0;
+  var THROW_DURATION = 0.6;
+  var throwProjectile = null;
+
+  function doFlip(){
+    if (!started || isFlipping || !isGrounded) return;
+    isFlipping = true;
+    flipT = 0;
+    velocityY = JUMP_SPEED * 0.55;
+    isGrounded = false;
+    sendOrQueue({ type:'rbx-action', action:'flip' });
+  }
+
+  function throwShield(){
+    if (!started || isThrowingShield) return;
+    isThrowingShield = true;
+    throwT = 0;
+    isAttacking = true; attackT = 0;
+    if (equippedWeapon) equippedWeapon.visible = false;
+    throwProjectile = buildShield();
+    scene.add(throwProjectile);
+    sendOrQueue({ type:'rbx-action', action:'shield-throw' });
+  }
 
   function toggleFly(){
     if (!started) return;
@@ -1326,6 +1357,27 @@
       leftArm.rotation.z = 0; rightArm.rotation.z = 0;
       leftFlame.visible = false; rightFlame.visible = false;
     }
+    if (isFlipping){
+      flipT += dt;
+      var flp = Math.min(1, flipT / FLIP_DURATION);
+      character.rotation.x = -flp * Math.PI * 2;
+      if (flipT >= FLIP_DURATION){ isFlipping = false; character.rotation.x = 0; }
+    }
+    if (isThrowingShield){
+      throwT += dt;
+      var thp = Math.min(1, throwT / THROW_DURATION);
+      var outDist = thp < 0.5 ? (thp/0.5) * 16 : (1 - (thp-0.5)/0.5) * 16;
+      var handOffset = new THREE.Vector3(1.3, 3.0, 0).applyAxisAngle(new THREE.Vector3(0,1,0), character.rotation.y);
+      var throwDir = new THREE.Vector3(Math.sin(charFacing), 0, Math.cos(charFacing));
+      throwProjectile.position.copy(character.position).add(handOffset).addScaledVector(throwDir, outDist);
+      throwProjectile.rotation.z += dt * 18;
+      if (throwT >= THROW_DURATION){
+        isThrowingShield = false;
+        scene.remove(throwProjectile);
+        throwProjectile = null;
+        if (equippedWeapon) equippedWeapon.visible = true;
+      }
+    }
     if (isAttacking){
       attackT += dt;
       var ap = Math.min(1, attackT / ATTACK_DURATION);
@@ -1388,6 +1440,12 @@
         rp.rightArm.rotation.x = -0.3 - Math.sin(rap * Math.PI) * 2.1;
         rp.rightArm.rotation.z = -Math.sin(rap * Math.PI) * 0.8;
         if (rp.attackT >= ATTACK_DURATION){ rp.attacking = false; rp.rightArm.rotation.z = 0; }
+      }
+      if (rp.flipping){
+        rp.flipT += dt;
+        var rfp = Math.min(1, rp.flipT / FLIP_DURATION);
+        rp.group.rotation.x = -rfp * Math.PI * 2;
+        if (rp.flipT >= FLIP_DURATION){ rp.flipping = false; rp.group.rotation.x = 0; }
       }
     });
 
