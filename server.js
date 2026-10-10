@@ -260,19 +260,9 @@ const GAME_MODES = ['chat', 'tag', 'hideseek', 'football', 'battle', 'ffa', 'roy
 const TEAM_MODES = ['battle', 'ctf'];
 let nextId = 1;
 
-// Roblox-style 3D mini-game rooms: Map(code -> { mapId, players: Map(ws -> {id,name,color,x,y,z,ry}) })
+// Roblox-style 3D mini-game rooms: Map(gameId -> { mapId, players: Map(ws -> {id,name,color,x,y,z,ry}) })
+// Every player who enters the same game tile shares that game's world (no room codes).
 const rbxRooms = new Map();
-const RBX_MAPS = ['classic', 'parkour', 'arena'];
-const RBX_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-
-function genRbxCode() {
-  let code;
-  do {
-    code = '';
-    for (let i = 0; i < 5; i++) code += RBX_CODE_CHARS[Math.floor(Math.random() * RBX_CODE_CHARS.length)];
-  } while (rbxRooms.has(code));
-  return code;
-}
 
 function rbxPlayerList(room) {
   return Array.from(room.players.values()).map((p) => ({ id: p.id, name: p.name, color: p.color, x: p.x, y: p.y, z: p.z, ry: p.ry }));
@@ -733,32 +723,21 @@ wss.on('connection', (ws, req) => {
       return;
     }
 
-    if (msg.type === 'rbx-create') {
-      const mapId = RBX_MAPS.includes(msg.mapId) ? msg.mapId : 'classic';
+    if (msg.type === 'rbx-enter') {
+      // No room codes: everyone who picks the same game tile lands in that game's shared world.
+      const gameId = String(msg.gameId || '').trim().slice(0, 30) || 'lobby';
       const name = String(msg.name || ws.name || 'Misafir').trim().slice(0, 20) || 'Misafir';
       const color = typeof msg.color === 'string' ? msg.color.slice(0, 16) : '#4da3ff';
-      const code = genRbxCode();
-      const room = { mapId, players: new Map() };
-      room.players.set(ws, { id, name, color, x: 0, y: 0, z: 0, ry: 0 });
-      rbxRooms.set(code, room);
-      ws.rbxRoom = code;
-      ws.send(JSON.stringify({ type: 'rbx-joined', code, mapId, selfId: id, players: rbxPlayerList(room) }));
-      return;
-    }
-
-    if (msg.type === 'rbx-join') {
-      const code = String(msg.code || '').trim().toUpperCase().slice(0, 10);
-      const room = rbxRooms.get(code);
+      let room = rbxRooms.get(gameId);
       if (!room) {
-        ws.send(JSON.stringify({ type: 'rbx-join-error', reason: 'not-found' }));
-        return;
+        const mapId = String(msg.mapId || 'classic').trim().slice(0, 20) || 'classic';
+        room = { mapId, players: new Map() };
+        rbxRooms.set(gameId, room);
       }
-      const name = String(msg.name || ws.name || 'Misafir').trim().slice(0, 20) || 'Misafir';
-      const color = typeof msg.color === 'string' ? msg.color.slice(0, 16) : '#4da3ff';
       room.players.set(ws, { id, name, color, x: 0, y: 0, z: 0, ry: 0 });
-      ws.rbxRoom = code;
-      ws.send(JSON.stringify({ type: 'rbx-joined', code, mapId: room.mapId, selfId: id, players: rbxPlayerList(room) }));
-      broadcastRbx(code, { type: 'rbx-player-joined', id, name, color, x: 0, y: 0, z: 0, ry: 0 }, ws);
+      ws.rbxRoom = gameId;
+      ws.send(JSON.stringify({ type: 'rbx-joined', code: gameId, mapId: room.mapId, selfId: id, players: rbxPlayerList(room) }));
+      broadcastRbx(gameId, { type: 'rbx-player-joined', id, name, color, x: 0, y: 0, z: 0, ry: 0 }, ws);
       return;
     }
 

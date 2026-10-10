@@ -30,34 +30,46 @@
     position:fixed; inset:0; z-index:20; display:flex; align-items:center; justify-content:center;
     background:#0d0d14; color:#fff; font-size:18px; flex-direction:column; gap:10px;
   }
-  #start-screen{
+  #start-screen, #avatar-screen{
     position:fixed; inset:0; z-index:15; display:flex; align-items:center; justify-content:center;
-    background:#0d0d14;
+    background:#0d0d14; overflow-y:auto; padding:20px 0; box-sizing:border-box;
   }
+  #avatar-screen{ z-index:16; display:none; }
+  #avatar-screen.open{ display:flex; }
   .start-card{
     background:rgba(22,22,34,.95); border:1px solid rgba(255,255,255,.15);
-    border-radius:16px; padding:28px 32px; text-align:center; color:#fff;
+    border-radius:16px; padding:24px 28px; text-align:center; color:#fff;
     max-width:380px; width:90%; box-shadow:0 10px 40px rgba(0,0,0,.5);
   }
-  .start-card h1{ margin:0 0 18px; font-size:24px; }
-  .lobby-tabs{ display:flex; gap:8px; margin-bottom:18px; }
-  .lobby-tab{
-    flex:1; font-size:14px; font-weight:700; color:#cfcfe0; background:rgba(255,255,255,.06);
-    border:1px solid rgba(255,255,255,.15); border-radius:9px; padding:10px 6px; cursor:pointer;
-  }
-  .lobby-tab.active{ color:#fff; background:#1e5fa8; border-color:#1e5fa8; }
-  .lobby-section p.lobby-hint{ margin:0 0 8px; font-size:13px; color:#a9a9c0; text-align:left; }
-  .lobby-section select, .lobby-section input{
-    width:100%; box-sizing:border-box; font-size:15px; padding:10px 12px; margin-bottom:14px;
-    border-radius:9px; border:1px solid rgba(255,255,255,.2); background:rgba(255,255,255,.06); color:#fff;
-  }
-  .lobby-section input::placeholder{ color:#8d8da8; }
+  .start-card.wide{ max-width:680px; }
+  .start-card h1{ margin:0; font-size:24px; }
+  .start-card h2{ margin:0 0 18px; font-size:20px; }
+  .home-top-row{ display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; }
+  .lobby-hint{ margin:0 0 8px; font-size:13px; color:#a9a9c0; text-align:left; }
   .lobby-btn{
-    width:100%; font-size:16px; font-weight:700; color:#fff; background:#2e9e4a;
-    border:none; border-radius:10px; padding:12px; cursor:pointer;
+    font-size:15px; font-weight:700; color:#fff; background:#2e9e4a;
+    border:none; border-radius:10px; padding:10px 20px; cursor:pointer;
   }
   .lobby-btn:hover{ background:#36b357; }
-  .lobby-error{ min-height:18px; margin:10px 0 0; font-size:13px; color:#ff6b6b; }
+  .ghost-btn{
+    font-size:14px; font-weight:700; color:#fff; background:rgba(255,255,255,.08);
+    border:1px solid rgba(255,255,255,.2); border-radius:10px; padding:9px 16px; cursor:pointer;
+  }
+  .ghost-btn:hover{ background:rgba(255,255,255,.16); }
+  .game-grid{
+    display:grid; grid-template-columns:repeat(auto-fill, minmax(130px, 1fr)); gap:10px;
+    max-height:62vh; overflow-y:auto; padding-right:4px;
+  }
+  .game-tile{
+    cursor:pointer; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.15);
+    border-radius:12px; padding:14px 8px; text-align:center; transition:background .12s;
+  }
+  .game-tile:hover{ background:#1e5fa8; border-color:#1e5fa8; }
+  .game-tile .icon{ font-size:30px; display:block; }
+  .game-tile .title{ font-size:12px; font-weight:700; margin-top:6px; line-height:1.3; }
+  .swatch-row{ display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; justify-content:center; }
+  .swatch{ width:34px; height:34px; border-radius:8px; cursor:pointer; border:3px solid transparent; }
+  .swatch.selected{ border-color:#fff; }
   #room-badge{
     pointer-events:none; color:#fff; font-size:13px; font-weight:700;
     background:rgba(20,20,30,.65); border:1px solid rgba(255,255,255,.2);
@@ -88,33 +100,30 @@
 <div id="loading">🧱 Yükleniyor…</div>
 
 <div id="start-screen">
+  <div class="start-card wide">
+    <div class="home-top-row">
+      <h1>🎮 Roblox Dünyası</h1>
+      <button type="button" class="ghost-btn" id="avatar-btn">🧑 Avatar</button>
+    </div>
+    <p class="lobby-hint">Bir oyun seç, katıldığın herkesle aynı dünyaya düşersin</p>
+    <div class="game-grid" id="game-grid"></div>
+  </div>
+</div>
+
+<div id="avatar-screen">
   <div class="start-card">
-    <h1>🎮 Roblox Dünyası</h1>
-    <div class="lobby-tabs">
-      <button type="button" class="lobby-tab active" id="tab-create">Grup Oluştur</button>
-      <button type="button" class="lobby-tab" id="tab-join">Gruba Katıl</button>
-    </div>
-    <div class="lobby-section" id="section-create">
-      <p class="lobby-hint">Harita seç</p>
-      <select id="map-select">
-        <option value="classic">🟩 Klasik Harita</option>
-        <option value="parkour">🧗 Parkur Haritası</option>
-        <option value="arena">⚔️ Arena Haritası</option>
-      </select>
-      <button type="button" class="lobby-btn" id="create-btn">Grup Oluştur</button>
-    </div>
-    <div class="lobby-section" id="section-join" hidden>
-      <p class="lobby-hint">Grup kodu</p>
-      <input type="text" id="code-input" maxlength="5" placeholder="Örn: AB12C" autocomplete="off">
-      <button type="button" class="lobby-btn" id="join-btn">Katıl</button>
-    </div>
-    <p class="lobby-error" id="lobby-error"></p>
+    <h2>🧑 Avatarını Özelleştir</h2>
+    <p class="lobby-hint">Üst (Gömlek)</p>
+    <div class="swatch-row" id="shirt-swatches"></div>
+    <p class="lobby-hint">Alt (Pantolon)</p>
+    <div class="swatch-row" id="pants-swatches"></div>
+    <button type="button" class="lobby-btn" id="avatar-close-btn">Kaydet ve Kapat</button>
   </div>
 </div>
 
 <div id="hud">
   <a href="/">⬅️ Düt Arena'ya Dön</a>
-  <div id="room-badge" hidden>Kod: <span id="room-code-text"></span></div>
+  <div id="room-badge" hidden>🎮 <span id="room-code-text"></span></div>
   <div id="hint">WASD: Hareket • Boşluk: Zıpla • Fare: Kamera</div>
 </div>
 
@@ -187,11 +196,111 @@
     return false;
   }
 
-  function loadMap(mapId){
-    mapMeshes.forEach(function(m){ scene.remove(m); });
-    mapMeshes = [];
-    solidBlocks = [];
-    if (mapId === 'parkour'){
+  function addHouse(x, z, color){
+    addBlock(x, z, 5, 3, 5, color);
+    addBlock(x, z, 5.6, 0.8, 5.6, 0x7a4a2b);
+  }
+
+  var MAP_THEMES = {
+    kacis: function(){ // Kaçış Binası — corridor walls to navigate
+      groundMat.color.set(0x55575e);
+      addBlock(0, -4, 14, 3, 1, 0x3a3d45);
+      addBlock(6, 2, 1, 3, 10, 0x3a3d45);
+      addBlock(-6, 2, 1, 3, 10, 0x3a3d45);
+      addBlock(0, 10, 10, 3, 1, 0x3a3d45);
+      addBlock(10, 10, 1, 3, 10, 0x3a3d45);
+    },
+    ciftlik: function(){ // Evcil Hayvan Çiftliği — fenced pens + barn
+      groundMat.color.set(0x8fae5e);
+      addBlock(10, 8, 0.4, 1, 8, 0xa9772f);
+      addBlock(14, 4, 8, 1, 0.4, 0xa9772f);
+      addBlock(14, 12, 8, 1, 0.4, 0xa9772f);
+      addBlock(18, 8, 0.4, 1, 8, 0xa9772f);
+      addHouse(-10, -8, 0xb03a3a);
+    },
+    kule: function(){ // Zorluk Kulesi — a zig-zag path upward (visual only, flat collision)
+      groundMat.color.set(0x6b6f7a);
+      addBlock(0, -6, 4, 2, 4, 0x9aa0ad);
+      addBlock(5, -2, 4, 2, 4, 0x9aa0ad);
+      addBlock(0, 2, 4, 2, 4, 0x9aa0ad);
+      addBlock(-5, 6, 4, 2, 4, 0x9aa0ad);
+      addBlock(0, 10, 4, 2, 4, 0x9aa0ad);
+    },
+    mahalle: function(){ // Komşu Mahallesi — a few houses around a square
+      groundMat.color.set(0x9fcf7a);
+      addHouse(10, 10, 0xd98c3a);
+      addHouse(-10, 10, 0x4a90c0);
+      addHouse(10, -10, 0xb0463a);
+      addHouse(-10, -10, 0x6ab04a);
+    },
+    arena: function(){ // Savaş Arenası
+      groundMat.color.set(0x8c6a6a);
+      var n = 14, r = 26;
+      for (var i = 0; i < n; i++){
+        var a = (i/n) * Math.PI*2;
+        addBlock(Math.cos(a)*r, Math.sin(a)*r, 4, 3, 4, 0x6b3a3a);
+      }
+      addBlock(6, 0, 3, 1.4, 3, 0xb08a3a);
+      addBlock(-6, 6, 3, 1.4, 3, 0xb08a3a);
+      addBlock(-6, -6, 3, 1.4, 3, 0xb08a3a);
+    },
+    yaris: function(){ // Yarış Pisti — oval barrier outline
+      groundMat.color.set(0x4a4a52);
+      var pts = 20, rx = 30, rz = 18;
+      for (var i = 0; i < pts; i++){
+        var a = (i/pts) * Math.PI*2;
+        addBlock(Math.cos(a)*rx, Math.sin(a)*rz, 1.4, 1, 1.4, 0xd94a3a);
+      }
+    },
+    ada: function(){ // Hayatta Kalma Adası
+      groundMat.color.set(0xd8c27a);
+      addBlock(6, 4, 2, 5, 2, 0x6b4a2b);
+      addBlock(-8, -6, 2.2, 4, 2.2, 0x6b4a2b);
+      addBlock(2, -10, 3, 2, 3, 0x7a7a7a);
+      addBlock(-4, 10, 3, 2, 3, 0x7a7a7a);
+    },
+    restoran: function(){ // Restoranını İşlet
+      groundMat.color.set(0xbfa06a);
+      addBlock(0, -10, 10, 2, 2, 0x8a5a3a);
+      [[-6,-2],[0,-2],[6,-2],[-6,6],[0,6],[6,6]].forEach(function(p){
+        addBlock(p[0], p[1], 1.4, 1, 1.4, 0x5a5a5a);
+      });
+    },
+    ajan: function(){ // Gizli Ajan
+      groundMat.color.set(0x2c2c38);
+      addBlock(8, 6, 3, 2.4, 3, 0x45455a);
+      addBlock(-8, 6, 3, 2.4, 3, 0x45455a);
+      addBlock(8, -8, 3, 2.4, 3, 0x45455a);
+      addBlock(-8, -8, 3, 2.4, 3, 0x45455a);
+      addBlock(0, 0, 4, 2.4, 4, 0x555570);
+    },
+    sehir: function(){ // Şehir İnşa Et
+      groundMat.color.set(0x6e6e76);
+      addBlock(8, 8, 5, 10, 5, 0x5a7a9a);
+      addBlock(-8, 8, 4, 16, 4, 0x4a6a8a);
+      addBlock(8, -8, 4, 6, 4, 0x7a8aa0);
+      addBlock(-8, -8, 5, 12, 5, 0x5a7a9a);
+    },
+    zombi: function(){ // Zombi Kaçışı
+      groundMat.color.set(0x5a6b4a);
+      var n = 10, r = 20;
+      for (var i = 0; i < n; i++){
+        var a = (i/n) * Math.PI*2;
+        addBlock(Math.cos(a)*r, Math.sin(a)*r, 2, 2, 1, 0x4a4030);
+      }
+    },
+    balik: function(){ // Balık Tut
+      groundMat.color.set(0x3a6a8a);
+      addBlock(0, 0, 4, 0.6, 18, 0x8a5a3a);
+      addBlock(-2.5, -2, 0.6, 1.4, 0.6, 0x6b4a2b);
+      addBlock(2.5, 4, 0.6, 1.4, 0.6, 0x6b4a2b);
+    },
+    basketbol: function(){ // Basketbol Sahası
+      groundMat.color.set(0xb5652f);
+      addBlock(0, -16, 0.5, 4, 3, 0xe0e0e0);
+      addBlock(0, 16, 0.5, 4, 3, 0xe0e0e0);
+    },
+    parkur: function(){ // Parkur Haritası
       groundMat.color.set(0x8a8f6e);
       addBlock(0, -8, 3, 1, 10, 0x8e5a2b);
       addBlock(8, -2, 10, 1, 3, 0x8e5a2b);
@@ -199,30 +308,39 @@
       addBlock(0, 16, 10, 1, 3, 0x8e5a2b);
       addBlock(-8, 10, 3, 1, 10, 0x8e5a2b);
       addBlock(-8, -4, 3, 1, 6, 0x8e5a2b);
-    } else if (mapId === 'arena'){
-      groundMat.color.set(0x8c6a6a);
-      var n = 14, r = 26;
-      for (var i=0;i<n;i++){
-        var a = (i/n) * Math.PI*2;
-        addBlock(Math.cos(a)*r, Math.sin(a)*r, 4, 3, 4, 0x6b3a3a);
-      }
-      addBlock(6, 0, 3, 1.4, 3, 0xb08a3a);
-      addBlock(-6, 6, 3, 1.4, 3, 0xb08a3a);
-      addBlock(-6, -6, 3, 1.4, 3, 0xb08a3a);
-    } else {
+    },
+    skatepark: function(){ // Skate Parkı
+      groundMat.color.set(0x8a8a90);
+      addBlock(6, -4, 4, 0.8, 4, 0xb0b0b8);
+      addBlock(-6, 4, 4, 1.2, 4, 0xb0b0b8);
+      addBlock(0, 10, 6, 0.6, 3, 0xb0b0b8);
+      addBlock(10, 8, 3, 1.6, 3, 0xb0b0b8);
+    },
+    classic: function(){
       groundMat.color.set(0xa3a2a5);
       addBlock(10, -6, 4, 4, 4, 0xc0392b);
       addBlock(-12, 8, 6, 2, 6, 0x2980b9);
       addBlock(6, 14, 3, 6, 3, 0x27ae60);
       addBlock(-8, -14, 5, 3, 5, 0xf39c12);
     }
+  };
+
+  function loadMap(mapId){
+    mapMeshes.forEach(function(m){ scene.remove(m); });
+    mapMeshes = [];
+    solidBlocks = [];
+    (MAP_THEMES[mapId] || MAP_THEMES.classic)();
   }
   loadMap('classic');
 
   // ---- Roblox-style blocky character (R6-ish) ----
   var SKIN = 0xf5cd6a;
-  var SHIRT = 0x1e5fa8;
-  var PANTS = 0x2e9e4a;
+  var AVATAR_SHIRTS = ['#1e5fa8','#c0392b','#27ae60','#8e44ad','#f39c12','#16a085','#e84393','#2c3e50'];
+  var AVATAR_PANTS = ['#2e9e4a','#2c3e50','#7f8c8d','#8e5a2b','#34495e','#c0392b','#16a085','#34304a'];
+  var avatarShirt = localStorage.getItem('dutArenaRbxShirt') || AVATAR_SHIRTS[0];
+  var avatarPants = localStorage.getItem('dutArenaRbxPants') || AVATAR_PANTS[0];
+  var SHIRT = avatarShirt;
+  var PANTS = avatarPants;
 
   var character = new THREE.Group();
   character.position.set(0, 0, 0);
@@ -310,10 +428,8 @@
   character.add(nameSprite);
 
   var sessionName = 'Misafir';
-  var sessionColor = '#1e5fa8';
   fetch('/api/me').then(function(r){ return r.json(); }).then(function(info){
     sessionName = (info && info.loggedIn && info.name) ? info.name : 'Misafir';
-    if (info && info.color) sessionColor = info.color;
     nameSprite.material.map.dispose();
     nameSprite.material.map = makeNameTexture(sessionName);
     nameSprite.material.needsUpdate = true;
@@ -393,8 +509,6 @@
         document.getElementById('start-screen').style.display = 'none';
         document.getElementById('chat-panel').hidden = false;
         started = true;
-      } else if (msg.type === 'rbx-join-error'){
-        document.getElementById('lobby-error').textContent = 'Oda bulunamadı, kodu kontrol et.';
       } else if (msg.type === 'rbx-player-joined'){
         addRemotePlayer(msg);
         appendChat('Sistem', (msg.name||'Biri') + ' katıldı');
@@ -442,32 +556,67 @@
     this.value = '';
   });
 
-  // ---- Lobby UI ----
-  var tabCreate = document.getElementById('tab-create');
-  var tabJoin = document.getElementById('tab-join');
-  var sectionCreate = document.getElementById('section-create');
-  var sectionJoin = document.getElementById('section-join');
-  tabCreate.addEventListener('click', function(){
-    tabCreate.classList.add('active'); tabJoin.classList.remove('active');
-    sectionCreate.hidden = false; sectionJoin.hidden = true;
-    document.getElementById('lobby-error').textContent = '';
+  // ---- Game grid (home screen) ----
+  var GAMES = [
+    { id:'kacis', icon:'🏃', title:'Kaçış Binası' },
+    { id:'ciftlik', icon:'🐾', title:'Evcil Hayvan Çiftliği' },
+    { id:'kule', icon:'🗼', title:'Zorluk Kulesi' },
+    { id:'mahalle', icon:'🏘️', title:'Komşu Mahallesi' },
+    { id:'arena', icon:'⚔️', title:'Savaş Arenası' },
+    { id:'yaris', icon:'🏎️', title:'Yarış Pisti' },
+    { id:'ada', icon:'🏝️', title:'Hayatta Kalma Adası' },
+    { id:'restoran', icon:'🍔', title:'Restoranını İşlet' },
+    { id:'ajan', icon:'🕵️', title:'Gizli Ajan' },
+    { id:'sehir', icon:'🏗️', title:'Şehir İnşa Et' },
+    { id:'zombi', icon:'🧟', title:'Zombi Kaçışı' },
+    { id:'balik', icon:'🎣', title:'Balık Tut' },
+    { id:'basketbol', icon:'🏀', title:'Basketbol Sahası' },
+    { id:'parkur', icon:'🧗', title:'Parkur Haritası' },
+    { id:'skatepark', icon:'🛹', title:'Skate Parkı' }
+  ];
+  var gameGrid = document.getElementById('game-grid');
+  GAMES.forEach(function(game){
+    var tile = document.createElement('div');
+    tile.className = 'game-tile';
+    tile.innerHTML = '<span class="icon">' + game.icon + '</span><span class="title">' + game.title + '</span>';
+    tile.addEventListener('click', function(){
+      sendOrQueue({ type:'rbx-enter', gameId: game.id, mapId: game.id, name: sessionName, color: avatarShirt });
+      document.getElementById('room-code-text').textContent = game.title;
+    });
+    gameGrid.appendChild(tile);
   });
-  tabJoin.addEventListener('click', function(){
-    tabJoin.classList.add('active'); tabCreate.classList.remove('active');
-    sectionJoin.hidden = false; sectionCreate.hidden = true;
-    document.getElementById('lobby-error').textContent = '';
+
+  // ---- Avatar customizer ----
+  function applyAvatarColors(){
+    torso.material.color.set(avatarShirt);
+    leftLeg.children[0].material.color.set(avatarPants);
+    rightLeg.children[0].material.color.set(avatarPants);
+  }
+  function buildSwatches(containerId, palette, current, onPick){
+    var el = document.getElementById(containerId);
+    palette.forEach(function(hex){
+      var sw = document.createElement('div');
+      sw.className = 'swatch' + (hex === current ? ' selected' : '');
+      sw.style.background = hex;
+      sw.addEventListener('click', function(){
+        Array.prototype.forEach.call(el.children, function(c){ c.classList.remove('selected'); });
+        sw.classList.add('selected');
+        onPick(hex);
+      });
+      el.appendChild(sw);
+    });
+  }
+  buildSwatches('shirt-swatches', AVATAR_SHIRTS, avatarShirt, function(hex){
+    avatarShirt = hex; localStorage.setItem('dutArenaRbxShirt', hex); applyAvatarColors();
   });
-  document.getElementById('create-btn').addEventListener('click', function(){
-    var mapId = document.getElementById('map-select').value;
-    sendOrQueue({ type:'rbx-create', mapId:mapId, name:sessionName, color:sessionColor });
+  buildSwatches('pants-swatches', AVATAR_PANTS, avatarPants, function(hex){
+    avatarPants = hex; localStorage.setItem('dutArenaRbxPants', hex); applyAvatarColors();
   });
-  document.getElementById('join-btn').addEventListener('click', function(){
-    var code = document.getElementById('code-input').value.trim();
-    if (!code){ document.getElementById('lobby-error').textContent = 'Önce bir kod yaz.'; return; }
-    sendOrQueue({ type:'rbx-join', code:code, name:sessionName, color:sessionColor });
+  document.getElementById('avatar-btn').addEventListener('click', function(){
+    document.getElementById('avatar-screen').classList.add('open');
   });
-  document.getElementById('code-input').addEventListener('keydown', function(e){
-    if (e.key === 'Enter') document.getElementById('join-btn').click();
+  document.getElementById('avatar-close-btn').addEventListener('click', function(){
+    document.getElementById('avatar-screen').classList.remove('open');
   });
 
   // ---- Movement state ----
