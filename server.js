@@ -725,6 +725,7 @@ wss.on('connection', (ws, req) => {
 
     if (msg.type === 'rbx-enter') {
       // No room codes: everyone who picks the same game tile lands in that game's shared world.
+      rbxLeave(ws); // in case we're portaling in from a different world without an explicit rbx-leave
       const gameId = String(msg.gameId || '').trim().slice(0, 30) || 'lobby';
       const name = String(msg.name || ws.name || 'Misafir').trim().slice(0, 20) || 'Misafir';
       const color = typeof msg.color === 'string' ? msg.color.slice(0, 16) : '#4da3ff';
