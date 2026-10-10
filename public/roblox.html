@@ -113,6 +113,20 @@
     position:fixed; inset:0; z-index:30; background:#fff; opacity:0; pointer-events:none;
   }
   #photo-flash.flash{ opacity:1; transition:opacity .4s ease; }
+  #snap-darken{
+    position:fixed; inset:0; z-index:19; background:#000; opacity:0; pointer-events:none;
+    transition:opacity 1.2s ease;
+  }
+  #snap-darken.dark{ opacity:.88; }
+  #thanos-hud{
+    position:fixed; left:50%; top:16px; transform:translateX(-50%); z-index:14;
+    width:min(420px, 80vw); text-align:center; color:#fff;
+    background:rgba(10,5,15,.7); border:1px solid rgba(255,80,80,.4); border-radius:12px; padding:10px 16px;
+  }
+  .thanos-name{ font-weight:800; letter-spacing:1px; margin-bottom:6px; color:#ff6b6b; }
+  .thanos-bar-bg{ width:100%; height:14px; border-radius:7px; background:rgba(255,255,255,.15); overflow:hidden; }
+  #thanos-hp-fill{ height:100%; width:100%; background:linear-gradient(90deg,#ff2e2e,#ff8a2e); transition:width .3s ease; }
+  #thanos-hp-text{ font-size:12px; margin-top:4px; color:#e0e0e0; }
   #chat-panel{
     position:fixed; left:16px; bottom:16px; z-index:10; width:280px;
     display:flex; flex-direction:column; gap:6px;
@@ -250,6 +264,12 @@
   <div id="hint">WASD: Hareket • Shift: Koş • Boşluk: Zıpla (2x: Uç/Takla/Süper Zıplama) • E: Etkileşim • 1-4: Eşya Seç • G: Ver (Strange: Gelecek Portalı) • X: Geçmiş Portalı (Strange) • F: Kılıç/Kalkan/Çekiç/Yumruk/Portal • L: Lazer • I: Zırh Kuşan • T: Çatırt (zamanı herkes için geri sarar) • N: Eldiven Animasyonu • P: Anı Yakala (6 taş gerekir)</div>
 </div>
 <div id="photo-flash" hidden></div>
+<div id="snap-darken" hidden></div>
+<div id="thanos-hud" hidden>
+  <div class="thanos-name">👑 THANOS</div>
+  <div class="thanos-bar-bg"><div id="thanos-hp-fill"></div></div>
+  <div id="thanos-hp-text">150 / 150</div>
+</div>
 
 <div id="interact-prompt" hidden></div>
 
@@ -584,6 +604,14 @@
       addBlock(-30, 0, 5, 28, 5, 0x5a7a9a);
       addBlock(0, 26, 6, 18, 6, 0x3a5a7a);
       addBlock(0, -26, 5, 24, 5, 0x6a8ab0);
+    },
+    'thanos-arena': function(){ // dark ruined arena for the Snap boss fight
+      groundMat.color.set(0x1a1222);
+      addBlock(18, 0, 3, 8, 3, 0x2a1a33);
+      addBlock(-18, 0, 3, 8, 3, 0x2a1a33);
+      addBlock(0, 18, 3, 8, 3, 0x2a1a33);
+      addBlock(12, -12, 4, 5, 4, 0x3a2040);
+      addBlock(-12, -12, 4, 5, 4, 0x3a2040);
     }
   };
 
@@ -609,7 +637,8 @@
     { id:'portal', emoji:'🌀', title:'Portal Gezgini', desc:'Bir portaldan geçip başka dünyaya geçtin' },
     { id:'giver', emoji:'🎁', title:'Cömert', desc:'Başka bir oyuncuya eşya verdin' },
     { id:'collector', emoji:'📦', title:'Hediye Avcısı', desc:'Toplamda 10 eşya topladın' },
-    { id:'fighter', emoji:'⚔️', title:'Savaşçı', desc:'Saldırı hareketini 20 kez kullandın' }
+    { id:'fighter', emoji:'⚔️', title:'Savaşçı', desc:'Saldırı hareketini 20 kez kullandın' },
+    { id:'thanos_defeated', emoji:'👑', title:'Thanos\'u Yendin', desc:'Çatırt portalından geçip Thanos\'u yendin' }
   ];
   var unlockedAchvs = [];
   try { unlockedAchvs = JSON.parse(localStorage.getItem('dutArenaRbxAchv') || '[]'); } catch(e){ unlockedAchvs = []; }
@@ -676,7 +705,16 @@
     mapMeshes = [];
     solidBlocks = [];
     interactables.length = 0;
+    if (typeof removeThanos === 'function') removeThanos();
     (MAP_THEMES[mapId] || MAP_THEMES.classic)();
+    if (mapId === 'thanos-arena'){
+      scene.background = makeSkyTexture('#0a0612', '#1a0f2a');
+      scene.fog = new THREE.Fog(0x120a1a, 20, 90);
+      if (typeof spawnThanos === 'function') spawnThanos();
+      return;
+    }
+    scene.background = makeSkyTexture('#5a9bd8', '#cfe8ff');
+    scene.fog = new THREE.Fog(0x8ec9f0, 40, 140);
     var flavor = INTERACT_FLAVORS[mapId] || { label:'🎁 Sandığı Aç', msg:'🎁 Sandıktan çıkan:', item:{emoji:'🎁',name:'Hediye'} };
     addInteractable(0, -3, '🏪 ' + flavor.label, function(){
       if (flavor.item){
@@ -1491,6 +1529,7 @@
     isAttacking = true;
     attackT = 0;
     bumpPrimaryActionStat();
+    tryDamageThanos(18, 8);
     sendOrQueue({ type:'rbx-action', action:'swing' });
   }
 
@@ -1541,6 +1580,7 @@
     throwProjectile = buildWeaponMesh(selectedHero);
     scene.add(throwProjectile);
     bumpPrimaryActionStat();
+    tryDamageThanos(22, 20);
     sendOrQueue({ type:'rbx-action', action:'weapon-throw' });
   }
 
@@ -1561,6 +1601,7 @@
     poundT = 0;
     spawnShockwave(character.position);
     bumpPrimaryActionStat();
+    tryDamageThanos(28, 10);
     sendOrQueue({ type:'rbx-action', action:'pound' });
   }
 
@@ -1588,15 +1629,17 @@
     g.userData.ring = ring;
     return g;
   }
-  function spawnPortalTo(dest, msgPrefix){
+  function spawnPortalTo(dest, msgPrefix, big){
     if (!started || inCutscene || portals.length > 0) return;
     var fwd = new THREE.Vector3(Math.sin(charFacing), 0, Math.cos(charFacing));
-    var pos = character.position.clone().addScaledVector(fwd, 3);
+    var dist = big ? 6 : 3;
+    var pos = character.position.clone().addScaledVector(fwd, dist);
     var mesh = buildPortalMesh();
-    mesh.position.set(pos.x, 1.6, pos.z);
+    if (big) mesh.scale.setScalar(4);
+    mesh.position.set(pos.x, big ? 4 : 1.6, pos.z);
     mesh.rotation.y = charFacing;
     scene.add(mesh);
-    portals.push({ mesh:mesh, x:pos.x, z:pos.z, destId:dest.id, destTitle:dest.title, t:0 });
+    portals.push({ mesh:mesh, x:pos.x, z:pos.z, destId:dest.id, destTitle:dest.title, t:0, radius: big ? PORTAL_RADIUS*4 : PORTAL_RADIUS });
     appendChat('Sistem', msgPrefix + ' ' + dest.title + '\'na gidiyor! İçinden yürü.');
   }
   function doPortal(){
@@ -1657,6 +1700,7 @@
     isFiring = true;
     fireT = 0;
     spawnLaserBeam(character, charFacing);
+    tryDamageThanos(15, 40);
     sendOrQueue({ type:'rbx-action', action:'laser' });
   }
 
@@ -1745,6 +1789,104 @@
       }
     });
   }
+  // ---- Thanos boss fight (inside the Snap portal) ----
+  var thanosGroup = null;
+  var thanosLeftArm = null, thanosRightArm = null;
+  var thanosHP = 0, thanosMaxHP = 150;
+  var thanosAlive = false;
+  var thanosDefeating = false;
+  var thanosDefeatT = 0;
+  var thanosIdleT = 0;
+  function buildThanosMesh(){
+    var g = new THREE.Group();
+    var purpleSkin = 0x7a5a9e, darkArmor = 0x2e2a3a, gold = 0xc9a23a;
+    var torso = new THREE.Mesh(new THREE.BoxGeometry(4.4, 4.4, 2.2), new THREE.MeshStandardMaterial({ color:darkArmor, roughness:0.6 }));
+    torso.position.y = 6.6; torso.castShadow = true;
+    g.add(torso);
+    var belt = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.6, 2.4), new THREE.MeshStandardMaterial({ color:gold, metalness:0.5, roughness:0.4 }));
+    belt.position.y = 4.5;
+    g.add(belt);
+    var head = new THREE.Mesh(new THREE.BoxGeometry(2.6, 2.8, 2.6), new THREE.MeshStandardMaterial({ color:purpleSkin, roughness:0.7 }));
+    head.position.y = 10.3; head.castShadow = true;
+    g.add(head);
+    var eyeMat = new THREE.MeshStandardMaterial({ color:0x2255ff, emissive:0x1133cc, emissiveIntensity:0.8 });
+    [[-0.6,10.4,1.3],[0.6,10.4,1.3]].forEach(function(p){
+      var eye = new THREE.Mesh(new THREE.BoxGeometry(0.4,0.3,0.1), eyeMat);
+      eye.position.set(p[0],p[1],p[2]);
+      g.add(eye);
+    });
+    function thanosLimb(w,h,d,color){
+      var geo = new THREE.BoxGeometry(w,h,d);
+      geo.translate(0, -h/2, 0);
+      var mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color:color, roughness:0.6 }));
+      mesh.castShadow = true;
+      var pivot = new THREE.Group();
+      pivot.add(mesh);
+      return pivot;
+    }
+    var leftArm = thanosLimb(1.3, 4.6, 1.3, purpleSkin);
+    leftArm.position.set(-3, 8.6, 0);
+    g.add(leftArm);
+    var rightArm = thanosLimb(1.3, 4.6, 1.3, purpleSkin);
+    rightArm.position.set(3, 8.6, 0);
+    g.add(rightArm);
+    var legGeo = new THREE.BoxGeometry(1.6, 4.4, 1.6);
+    [-1.1, 1.1].forEach(function(xoff){
+      var leg = new THREE.Mesh(legGeo, new THREE.MeshStandardMaterial({ color:darkArmor, roughness:0.7 }));
+      leg.position.set(xoff, 2.2, 0); leg.castShadow = true;
+      g.add(leg);
+    });
+    g.userData.leftArm = leftArm;
+    g.userData.rightArm = rightArm;
+    return g;
+  }
+  function updateThanosHUD(){
+    var pct = Math.max(0, Math.min(100, (thanosHP / thanosMaxHP) * 100));
+    var bar = document.getElementById('thanos-hp-fill');
+    if (bar) bar.style.width = pct + '%';
+    var txt = document.getElementById('thanos-hp-text');
+    if (txt) txt.textContent = Math.max(0, thanosHP) + ' / ' + thanosMaxHP;
+  }
+  function spawnThanos(){
+    thanosGroup = buildThanosMesh();
+    thanosGroup.position.set(0, 0, -16);
+    thanosGroup.scale.setScalar(1);
+    scene.add(thanosGroup);
+    thanosLeftArm = thanosGroup.userData.leftArm;
+    thanosRightArm = thanosGroup.userData.rightArm;
+    thanosHP = thanosMaxHP;
+    thanosAlive = true;
+    thanosDefeating = false;
+    updateThanosHUD();
+    document.getElementById('thanos-hud').hidden = false;
+    appendChat('Sistem', '👑 Thanos karşında! Yaklaşıp saldır (F/L).');
+  }
+  function removeThanos(){
+    if (thanosGroup){ scene.remove(thanosGroup); thanosGroup = null; }
+    thanosAlive = false;
+    thanosDefeating = false;
+    document.getElementById('thanos-hud').hidden = true;
+  }
+  function damageThanos(amount){
+    if (!thanosAlive) return;
+    thanosHP -= amount;
+    if (thanosHP <= 0){
+      thanosHP = 0;
+      thanosAlive = false;
+      thanosDefeating = true;
+      thanosDefeatT = 0;
+      appendChat('Sistem', '💀 Thanos\'u yendin! +100 💰');
+      addGold(100);
+      unlockAchv('thanos_defeated');
+    }
+    updateThanosHUD();
+  }
+  function tryDamageThanos(amount, range){
+    if (currentRoomCode !== 'thanos-arena' || !thanosAlive || !thanosGroup) return;
+    var d = character.position.distanceTo(thanosGroup.position);
+    if (d <= range) damageThanos(amount);
+  }
+
   // ---- Infinity Gauntlet cutscene + Snap ----
   var inCutscene = false;
   var cutsceneT = 0;
@@ -1885,6 +2027,15 @@
     sendOrQueue({ type:'rbx-action', action:'time-rewind' });
     rewindTime();
     unlockAchv('snap');
+
+    var darken = document.getElementById('snap-darken');
+    darken.hidden = false;
+    darken.classList.add('dark');
+    setTimeout(function(){
+      darken.classList.remove('dark');
+      setTimeout(function(){ darken.hidden = true; }, 1300);
+      spawnPortalTo({ id:'thanos-arena', title:'Thanos Arenası' }, '🌌 Dev bir portal açıldı:', true);
+    }, 900);
   }
 
   var charFacing = 0; // radians
@@ -2085,6 +2236,27 @@
     for (var pi = snapFx.length - 1; pi >= 0; pi--){
       if (snapFx[pi].t > 0.75){ scene.remove(snapFx[pi].mesh); snapFx.splice(pi, 1); }
     }
+    if (thanosGroup && thanosAlive){
+      thanosIdleT += dt;
+      var tSway = Math.sin(thanosIdleT) * 0.12;
+      thanosLeftArm.rotation.x = tSway;
+      thanosRightArm.rotation.x = -tSway;
+    }
+    if (thanosDefeating && thanosGroup){
+      thanosDefeatT += dt;
+      var dfp = Math.min(1, thanosDefeatT / 1.6);
+      thanosGroup.rotation.z = dfp * (Math.PI/2.2);
+      thanosGroup.position.y = -dfp * 6;
+      thanosGroup.scale.setScalar(Math.max(0.01, 1 - dfp));
+      if (thanosDefeatT >= 3.5){
+        removeThanos();
+        if (currentRoomCode === 'thanos-arena'){
+          sendOrQueue({ type:'rbx-leave' });
+          sendOrQueue({ type:'rbx-enter', gameId:'classic', mapId:'classic', name:sessionName, color:avatarShirt, hero:selectedHero });
+          document.getElementById('room-code-text').textContent = 'Klasik Harita';
+        }
+      }
+    }
     if (inCutscene){
       cutsceneT += dt;
       var cp = Math.min(1, cutsceneT / CUTSCENE_DURATION);
@@ -2174,7 +2346,8 @@
       portal.t += dt;
       portal.mesh.userData.ring.rotation.z += dt * 1.5;
       var pdx = character.position.x - portal.x, pdz = character.position.z - portal.z;
-      if (started && pdx*pdx + pdz*pdz <= PORTAL_RADIUS*PORTAL_RADIUS){
+      var pRadius = portal.radius || PORTAL_RADIUS;
+      if (started && pdx*pdx + pdz*pdz <= pRadius*pRadius){
         usePortal(portal);
         break;
       }
